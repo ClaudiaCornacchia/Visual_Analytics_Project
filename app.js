@@ -5,116 +5,186 @@ const API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 const mapContainer = document.getElementById('scatterplot-container');
 const width = mapContainer.clientWidth;
 const height = mapContainer.clientHeight;
-const svg = d3.select("#map");
+
+const svg = d3.select("#map")
+    .attr("viewBox", `0 0 ${width} ${height}`)
+    .attr("preserveAspectRatio", "xMidYMid meet");
 
 // Create a "Master Group" that will handle zooming and panning
 const zoomGroup = svg.append("g").attr("id", "zoom-group");
 
 // Put the layers INSIDE the Master Group 
 const linkLayer = zoomGroup.append("g").attr("id", "link-layer");
-const nodeLayer = zoomGroup.append("g").attr("id", "node-layer");
+const brushLayer = zoomGroup.append("g").attr("class", "brush");
+const nodeLayer  = zoomGroup.append("g").attr("id", "node-layer");
+ 
 
-// Define the zoom behavior
-const zoom = d3.zoom()
-    .scaleExtent([0.5, 20]) // Limits: you can zoom out to 0.5x and zoom in up to 20x
-    .on("zoom", function(event) {
-        // Apply the mathematical transformation (scale and translation) to the Master Group
-        zoomGroup.attr("transform", event.transform);
-    });
+const xAxisGroup = svg.append("g").attr("class", "x-axis");
+const yAxisGroup = svg.append("g").attr("class", "y-axis");
 
-// Activate the zoom behavior on the SVG container
-svg.call(zoom);
-
-// Global states
-let selectedNodesData = []; // Array to handle both single clicks and brushing
-let xScale, yScale;
-const baseNodeRadius = 5;
-
-// Set up SVG Defs for the trajectory arrowheads (Feature 1)
+// Arrowhead marker
 svg.append("defs").append("marker")
     .attr("id", "arrowhead")
     .attr("viewBox", "0 -5 10 10")
-    .attr("refX", 8) // Offset to not overlap the circle
-    .attr("refY", 0)
-    .attr("markerWidth", 6)
-    .attr("markerHeight", 6)
+    .attr("refX", 8).attr("refY", 0)
+    .attr("markerWidth", 6).attr("markerHeight", 6)
     .attr("orient", "auto")
-    .append("path")
-    .attr("d", "M0,-5L10,0L0,5")
-    .attr("fill", "#555");
+    .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#555");
+
+let xScale, yScale;
+let selectedNodesData = [];
+const baseNodeRadius = 5;
+ 
+const perturbationColors = {
+    dict_synonym:   "#2ca02c",
+    dict_antonym:   "#d62728",
+    llm_paraphrase: "#1f77b4",
+    llm_opposite:   "#ff7f0e",
+    noise:          "#7f7f7f"
+};
+
+// Define the zoom behavior
+const zoom = d3.zoom()
+    .scaleExtent([0.5, 20])
+    .filter(function (event) {
+        // blocca doppio-click zoom
+        if (event.type === "dblclick") return false;
+        // rotellina: sempre ok
+        if (event.type === "wheel") return true;
+        // mousedown: ok solo se NON siamo in brush mode e NON su un nodo
+        if (event.type === "mousedown") {
+            return !document.body.classList.contains("brushing") &&
+                   !event.target.classList.contains("node");
+        }
+        // touchstart/touchmove ecc: passa
+        return !event.ctrlKey && !event.button;
+    })
+    .on("zoom", function (event) {
+        zoomGroup.attr("transform", event.transform);
+        xAxisGroup.call(d3.axisBottom(event.transform.rescaleX(xScale)));
+        yAxisGroup.call(d3.axisLeft(event.transform.rescaleY(yScale)));
+    });
+ 
+svg.call(zoom)
+    // disabilita il doppio-click zoom nativo di d3
+   .on("dblclick.zoom", null);
+
+// Aggiungiamo "panning" sul body solo durante il drag su area vuota
+svg.on("mousedown.panCursor", function (event) {
+    if (!document.body.classList.contains("brushing") &&
+        !event.target.classList.contains("node")) {
+        document.body.classList.add("panning");
+    }
+});
+window.addEventListener("mouseup",    () => document.body.classList.remove("panning"));
+window.addEventListener("mouseleave", () => document.body.classList.remove("panning"));
+ 
+// SHIFT key toggles brushing mode
+let isMouseDown = false;
+window.addEventListener("mousedown", () => { isMouseDown = true; });
+window.addEventListener("mouseup",   () => { isMouseDown = false; });
+ 
+window.addEventListener("keydown", (e) => {
+    if (e.key === "Shift" && !isMouseDown) {
+        document.body.classList.add("brushing");
+    }
+});
+window.addEventListener("keyup", (e) => {
+    if (e.key === "Shift" && !isMouseDown) {
+        document.body.classList.remove("brushing");
+    }
+});
 
 
-console.log("Starting to load base_map.csv...");
-
-d3.csv("base_map.csv", function(d) {
+// Load data and initialize the scatterplot
+d3.csv("base_map.csv", function (d) {
     return {
-        id: d.tweet_id,
-        text: d.text,
+        id:        d.tweet_id,
+        text:      d.text,
         sentiment: d.sentiment,
-        airline: d.airline,
-        x: +d.x, 
+        airline:   d.airline,
+        x: +d.x,
         y: +d.y
     };
-}).then(function(data) {
-    console.log(`Loaded ${data.length} points. Drawing the map...`);
-    
+}).then(function (data) {
+    const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+ 
     const xExtent = d3.extent(data, d => d.x);
     const yExtent = d3.extent(data, d => d.y);
-
-
-    const xRange = xExtent[1] - xExtent[0];
-    const yRange = yExtent[1] - yExtent[0];
-    const xPadding = xRange * 0.05; 
-    const yPadding = yRange * 0.05;
-    
+    const xPad = (xExtent[1] - xExtent[0]) * 0.05;
+    const yPad = (yExtent[1] - yExtent[0]) * 0.05;
+ 
     xScale = d3.scaleLinear()
-        .domain([xExtent[0] - xPadding, xExtent[1] + xPadding])
-        .range([50, width - 50]);
-
+        .domain([xExtent[0] - xPad, xExtent[1] + xPad])
+        .range([margin.left, width - margin.right]);
+ 
     yScale = d3.scaleLinear()
-        .domain([yExtent[0] - yPadding, yExtent[1] + yPadding])
-        .range([height - 50, 50]);
-
-    // Feature 3: Brushing (Cluster Selection)
+        .domain([yExtent[0] - yPad, yExtent[1] + yPad])
+        .range([height - margin.bottom, margin.top]);
+ 
+    xAxisGroup.attr("transform", `translate(0,${height - margin.bottom})`).call(d3.axisBottom(xScale));
+    yAxisGroup.attr("transform", `translate(${margin.left},0)`).call(d3.axisLeft(yScale));
+ 
+    // Brush 
+    let brushTimer = null;
     const brush = d3.brush()
         .extent([[0, 0], [width, height]])
-        .on("end", handleBrush);
-
-    // Add brush layer behind nodes but in front of links
-    zoomGroup.insert("g", "#node-layer")
-        .attr("class", "brush")
-        .call(brush);
-
-    const dynamicRadius = data.length > 2000 ? 2 : 5;
-
+        .on("brush end", function (event) {
+            if (!event.selection) return;
+            clearTimeout(brushTimer);
+            brushTimer = setTimeout(() => {
+                const [[x0, y0], [x1, y1]] = event.selection;
+                const t = d3.zoomTransform(svg.node());
+                const brushed = [];
+                nodeLayer.selectAll("circle.node").each(function (d) {
+                    const cx = t.applyX(xScale(d.x));
+                    const cy = t.applyY(yScale(d.y));
+                    if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) brushed.push(d);
+                });
+                selectNodes(brushed);
+            }, 60);
+        });
+ 
+    brushLayer.call(brush);
+ 
     // Draw circles
-    const circles = nodeLayer.selectAll("circle.node")
+    const bigDataset = data.length > 2000;
+ 
+    nodeLayer.selectAll("circle.node")
         .data(data)
         .enter()
         .append("circle")
-        .attr("class", d => `node ${d.sentiment}`) 
-        .attr("id", d => "node-" + d.id) 
+        .attr("class", d => `node ${d.sentiment}`)
+        .attr("id",    d => "node-" + d.id)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .attr("r", baseNodeRadius)
-        .on("click", function(event, d) {
-            // Ignore click if holding shift (optional brush combo), otherwise select single
-            svg.select(".brush").call(brush.move, null); // Clear brush
+        .attr("r",  bigDataset ? 2 : baseNodeRadius)
+        .attr("shape-rendering", "crispEdges")
+        .style("stroke-width", bigDataset ? "0px" : "0.5px")
+        .style("opacity", bigDataset ? 0.5 : 0.8)
+        .on("click", function (event, d) {
+            // pulisce la brush selection visiva
+            brushLayer.call(brush.move, null);
             selectNodes([d]);
         });
-        
-    // Coloring logic
-    const colorScaleAirline = d3.scaleOrdinal(d3.schemeCategory10);
+ 
+    // ── Color buttons ──────────────────────────────────────────────────────
+    const colorAirline = d3.scaleOrdinal(d3.schemeCategory10);
+ 
     document.getElementById("btn-color-airline").addEventListener("click", () => {
-        d3.selectAll("circle.node").transition().duration(800)
-            .style("fill", d => colorScaleAirline(d.airline)).style("opacity", 0.8); 
+        nodeLayer.selectAll("circle.node")
+            .transition().duration(800)
+            .style("fill", d => colorAirline(d.airline))
+            .style("opacity", 0.8);
     });
-
+ 
     document.getElementById("btn-color-sentiment").addEventListener("click", () => {
-        d3.selectAll("circle.node").transition().duration(800)
-            .style("fill", null).style("opacity", null); 
+        nodeLayer.selectAll("circle.node")
+            .transition().duration(800)
+            .style("fill", null)
+            .style("opacity", null);
     });
-
+ 
 }).catch(function(error){
     console.error("Error loading CSV:", error);
     alert("Make sure base_map.csv is loaded and you are running a local server.");
@@ -122,58 +192,56 @@ d3.csv("base_map.csv", function(d) {
 
 
 // Handle D3 Brush event
+let brushTimer = null;
 function handleBrush(event) {
-    if (!event.selection) return; // Ignore clear
-    const [[x0, y0], [x1, y1]] = event.selection;
-    
-    const brushedNodes = [];
-    d3.selectAll("circle.node").each(function(d) {
-        const cx = xScale(d.x);
-        const cy = yScale(d.y);
-        if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) {
-            brushedNodes.push(d);
-        }
-    });
-    
-    selectNodes(brushedNodes);
+    if (!event.selection) return;
+    // throttle: evita calcoli ad ogni pixel durante il drag
+    clearTimeout(brushTimer);
+    brushTimer = setTimeout(() => {
+        const [[x0, y0], [x1, y1]] = event.selection;
+        const t = d3.zoomTransform(svg.node());
+        const brushedNodes = [];
+        d3.selectAll("circle.node").each(function(d) {
+            const cx = t.applyX(xScale(d.x));
+            const cy = t.applyY(yScale(d.y));
+            if (cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1) {
+                brushedNodes.push(d);
+            }
+        });
+        selectNodes(brushedNodes);
+    }, 80);
 }
 
 // Master function to handle UI updates for selected nodes
 function selectNodes(nodes) {
     selectedNodesData = nodes;
-    
     document.getElementById("selection-count").innerText = nodes.length;
-    d3.selectAll("circle.node").classed("selected", false);
-    
-    if (nodes.length === 0) {
+ 
+    nodeLayer.selectAll("circle.node").classed("selected", false);
+ 
+    const hasSelection = nodes.length > 0;
+    document.getElementById("btn-perturb").disabled = !hasSelection;
+    document.getElementById("btn-clear").disabled   = !hasSelection;
+ 
+    if (!hasSelection) {
         document.getElementById("single-tweet-details").style.display = "none";
-        document.getElementById("btn-perturb").disabled = true;
-        document.getElementById("btn-clear").disabled = true;
-        d3.select("#heatmap-container").html(""); 
-        
         document.getElementById("results-area").style.display = "none";
+        d3.select("#heatmap-container").html("");
         return;
     }
-
-    // Highlight selected on map
+ 
     nodes.forEach(n => d3.select("#node-" + n.id).classed("selected", true));
-
-    // ENABLE the buttons when nodes are selected
-    document.getElementById("btn-perturb").disabled = false;
-    document.getElementById("btn-clear").disabled = false;
-
-    // Feature 2: Token Level Analysis (Only show if 1 node is selected for clarity)
+ 
     if (nodes.length === 1) {
         const d = nodes[0];
         document.getElementById("single-tweet-details").style.display = "block";
-        document.getElementById("tw-id").innerText = d.id;
+        document.getElementById("tw-id").innerText        = d.id;
         document.getElementById("tw-sentiment").innerText = d.sentiment;
-        
         renderTokenAnalysis(d.text);
         renderHeatmap(d.text);
     } else {
         document.getElementById("single-tweet-details").style.display = "none";
-        d3.select("#heatmap-container").html("<p><em>Select a single tweet to view token heatmap.</em></p>");
+        d3.select("#heatmap-container").html("<p><em> Select a single tweet to view token heatmap.</em></p>");
     }
 }
 
@@ -218,13 +286,6 @@ function renderTokenAnalysis(text) {
 
 // Feature 1: Trajectory Arrows, Animations, and Ghost Points
 // Map perturbation types to distinct colors for visual encoding
-const perturbationColors = {
-    "dict_synonym": "#2ca02c",   // Green
-    "dict_antonym": "#d62728",   // Red
-    "llm_paraphrase": "#1f77b4", // Blue
-    "llm_opposite": "#ff7f0e",   // Orange
-    "noise": "#7f7f7f"           // Gray
-};
 
 document.getElementById("btn-perturb").addEventListener("click", () => {
     if (selectedNodesData.length === 0) return;
@@ -303,15 +364,17 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 // Clear perturbations and reset
 document.getElementById("btn-clear").addEventListener("click", () => {
     linkLayer.selectAll("*").remove(); // Remove arrows and ghosts
-    
-    // Reset nodes to original coordinates
-    d3.selectAll("circle.node").transition().duration(1000)
+    nodeLayer.selectAll("circle.node")
+        .transition().duration(800)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .style("fill", null); // Revert to CSS class colors
-        
+        .style("fill", null)
+        .style("stroke", null)
+        .style("stroke-width", null);
     document.getElementById("results-area").style.display = "none";
 });
+
+
 
 // Feature 4: Token vs Perturbation Heatmap
 function renderHeatmap(text) {
@@ -391,7 +454,5 @@ function renderHeatmap(text) {
 
 // Reset Zoom to the initial zoom
 document.getElementById("btn-reset-zoom").addEventListener("click", () => {
-    svg.transition()
-        .duration(750) // Animation duration 750 ms
-        .call(zoom.transform, d3.zoomIdentity); // zoomIdentity means "scale 1x, coordinate x=0, y=0"
+    svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
 });

@@ -5,28 +5,49 @@
     <title>Tweet Embeddings VA</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
+        * { box-sizing: border-box; }
         body { display: flex; font-family: sans-serif; margin: 0; overflow: hidden; }
         #scatterplot-container { width: 70vw; height: 100vh; background: #f9f9f9; position: relative; }
         #details-panel { width: 30vw; height: 100vh; padding: 20px; box-sizing: border-box; background: #fff; border-left: 1px solid #ccc; overflow-y: auto; }
         
+        /* SVG / cursor*/
+        #map { cursor: default; display: block; }
+ 
+        /* pan: While the cursor is pressed on the map (not on a node) */
+        body.panning #map { cursor: grabbing !important; }
+ 
+        /* hover on a node */
+        circle.node { cursor: pointer; }
+ 
+        /* brush mode (Shift) */
+        body.brushing #map        { cursor: crosshair !important; }
+        body.brushing circle.node { cursor: crosshair !important; }
+
         /* Node Colors */
-        .positive { fill: #2ca02c; } 
-        .negative { fill: #d62728; } 
-        .neutral { fill: #b3b3b3; }  
+        circle.node             { opacity: 0.7; stroke: #555; stroke-width: 0.5px; }
+        circle.node:hover       { opacity: 1;   stroke-width: 2px; }
+        circle.node.selected    { stroke: #000; stroke-width: 2px; opacity: 1; }
+        .positive { fill: #2ca02c; }
+        .negative { fill: #d62728; }
+        .neutral  { fill: #b3b3b3; }
         
-        circle.node { opacity: 0.7; stroke: #333; stroke-width: 0.5px; }
-        circle.node:hover { stroke-width: 2px; opacity: 1; cursor: pointer; }
-        circle.selected { stroke: #000; stroke-width: 3px; opacity: 1; }
+        /* Trajectories */
+        .ghost-node  { fill: none; stroke: #888; stroke-dasharray: 2,2; stroke-width: 1px; }
+        .trajectory  { stroke-width: 2px; fill: none; }
         
-        /* Ghost points and trajectories */
-        .ghost-node { fill: none; stroke: #888; stroke-dasharray: 2,2; stroke-width: 1px; }
-        .trajectory { stroke-width: 2px; fill: none; }
+        /* Brush overlay */
+        .brush .overlay  { pointer-events: none; }
+        body.brushing .brush .overlay { pointer-events: all; }
+        .brush .selection { stroke: #555; stroke-dasharray: 3,2; fill: rgba(100,100,200,0.1); }
         
-        /* Token Analysis */
+        /* Details panel  */
         #tw-text { font-size: 14px; line-height: 1.6; background: #eee; padding: 10px; border-radius: 4px; }
-        .token { padding: 2px 4px; margin: 0 2px; border-radius: 3px; display: inline-block; color: #000; font-weight: bold; text-shadow: 0px 0px 2px rgba(255,255,255,0.8); }
-        button { padding: 8px 12px; margin-right: 5px; margin-bottom: 10px; cursor: pointer; }
+        .token   { padding: 2px 4px; margin: 0 2px; border-radius: 3px; display: inline-block; font-weight: bold; }
+        button   { padding: 8px 12px; margin-right: 5px; margin-bottom: 10px; cursor: pointer; }
         button:disabled { cursor: not-allowed; opacity: 0.5; }
+ 
+        #results-area { margin-top: 15px; background: #f0f8ff; padding: 10px; border: 1px solid #cce7ff; border-radius: 4px; }
+
     </style>
 </head>
 <body>
@@ -36,10 +57,12 @@
             <strong>Color by: </strong>
             <button id="btn-color-sentiment">Sentiment</button>
             <button id="btn-color-airline">Airline</button>
-            <span style="margin-left: 20px; font-size: 0.9em; color: #555;">(Click a node, or drag to Brush multiple nodes)</span>
-        </div>
+            <span style="margin-left:20px;font-size:0.85em;color:#555;">
+            Click node = selection &nbsp;|&nbsp; Drag on map = pan &nbsp;|&nbsp; Scroll = zoom &nbsp;|&nbsp; Shift+drag = multi-select
+        </span>
+    </div>
         
-        <svg id="map" width="100%" height="100%" style="padding-top: 50px; box-sizing: border-box;"></svg>
+       <svg id="map" width="100%" height="100%" style="padding-top:50px;"></svg>
     </div>
 
     <div id="details-panel">
@@ -56,7 +79,7 @@
         <hr>
         <h3>Apply Perturbation</h3>
         <div style="margin-bottom: 10px;">
-            <select id="perturbation-select" style="padding: 5px; width: 100%; margin-bottom: 10px;">
+            <select id="perturbation-select" style="padding:5px;width:100%;margin-bottom:10px;">
                 <option value="dict_synonym">Dictionary: Synonym</option>
                 <option value="dict_antonym">Dictionary: Antonym</option>
                 <option value="llm_paraphrase">LLM: Paraphrase</option>
