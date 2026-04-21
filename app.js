@@ -1,3 +1,6 @@
+// IMPORTANT: Change with you url
+const API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
+
 // Get SVG container dimensions
 const mapContainer = document.getElementById('scatterplot-container');
 const width = mapContainer.clientWidth;
@@ -179,7 +182,7 @@ function renderTokenAnalysis(text) {
     const container = d3.select("#tw-text");
     container.html("<em>Calculating token weights...</em>"); // Loading state
 
-    const apiUrl = 'https://transdesert-overhugely-alessandra.ngrok-free.dev/api/token_weights';// Update to ngrok if on Kaggle
+    const apiUrl = `${API_BASE_URL}/api/token_weights`;
 
     fetch(apiUrl, {
         method: 'POST',
@@ -235,7 +238,7 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 
     selectedNodesData.forEach(d => {
         // IMPORTANT: Change this URL to your ngrok URL if running on Kaggle
-        const apiUrl = 'https://transdesert-overhugely-alessandra.ngrok-free.dev/api/perturb';
+        const apiUrl = `${API_BASE_URL}/api/perturb`;
         
         fetch(apiUrl, {
             method: 'POST',
@@ -315,7 +318,7 @@ function renderHeatmap(text) {
     const container = d3.select("#heatmap-container");
     container.html("<em>Generating heatmap matrix...</em>"); // Loading state
 
-   const apiUrl = 'https://transdesert-overhugely-alessandra.ngrok-free.dev/api/heatmap'; // Update to ngrok if on Kaggle
+   const apiUrl = `${API_BASE_URL}/api/heatmap`; // Update to ngrok if on Kaggle
 
     fetch(apiUrl, {
         method: 'POST',
