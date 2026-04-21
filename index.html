@@ -5,44 +5,78 @@
     <title>Tweet Embeddings VA</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
-        body { display: flex; font-family: sans-serif; margin: 0; }
-        #scatterplot-container { width: 70vw; height: 100vh; background: #f9f9f9; }
-        #details-panel { width: 30vw; height: 100vh; padding: 20px; box-sizing: border-box; background: #fff; border-left: 1px solid #ccc; }
-        .positive { fill: #2ca02c; } /* Standard green */
-        .negative { fill: #d62728; } /* Standard red */
-        .neutral { fill: #b3b3b3; }  /* Standard gray */
-        circle { opacity: 0.7; stroke: #333; stroke-width: 0.5px; }
-        circle:hover { stroke-width: 2px; opacity: 1; cursor: pointer; }
+        body { display: flex; font-family: sans-serif; margin: 0; overflow: hidden; }
+        #scatterplot-container { width: 70vw; height: 100vh; background: #f9f9f9; position: relative; }
+        #details-panel { width: 30vw; height: 100vh; padding: 20px; box-sizing: border-box; background: #fff; border-left: 1px solid #ccc; overflow-y: auto; }
+        
+        /* Node Colors */
+        .positive { fill: #2ca02c; } 
+        .negative { fill: #d62728; } 
+        .neutral { fill: #b3b3b3; }  
+        
+        circle.node { opacity: 0.7; stroke: #333; stroke-width: 0.5px; }
+        circle.node:hover { stroke-width: 2px; opacity: 1; cursor: pointer; }
+        circle.selected { stroke: #000; stroke-width: 3px; opacity: 1; }
+        
+        /* Ghost points and trajectories */
+        .ghost-node { fill: none; stroke: #888; stroke-dasharray: 2,2; stroke-width: 1px; }
+        .trajectory { stroke-width: 2px; fill: none; }
+        
+        /* Token Analysis */
+        #tw-text { font-size: 14px; line-height: 1.6; background: #eee; padding: 10px; border-radius: 4px; }
+        .token { padding: 2px 4px; margin: 0 2px; border-radius: 3px; display: inline-block; color: #000; font-weight: bold; text-shadow: 0px 0px 2px rgba(255,255,255,0.8); }
+        button { padding: 8px 12px; margin-right: 5px; margin-bottom: 10px; cursor: pointer; }
+        button:disabled { cursor: not-allowed; opacity: 0.5; }
     </style>
 </head>
 <body>
 
     <div id="scatterplot-container">
-       <div style="padding: 10px; background: #eee; border-bottom: 1px solid #ccc;">
+        <div style="padding: 10px; background: #eee; border-bottom: 1px solid #ccc; position: absolute; top: 0; width: 100%; z-index: 10;">
             <strong>Color by: </strong>
             <button id="btn-color-sentiment">Sentiment</button>
             <button id="btn-color-airline">Airline</button>
+            <span style="margin-left: 20px; font-size: 0.9em; color: #555;">(Click a node, or drag to Brush multiple nodes)</span>
         </div>
         
-        <svg id="map" width="100%" height="calc(100% - 40px)"></svg>
+        <svg id="map" width="100%" height="100%" style="padding-top: 50px; box-sizing: border-box;"></svg>
     </div>
 
     <div id="details-panel">
         <h2>Tweet Details</h2>
-        <p><strong>ID:</strong> <span id="tw-id">-</span></p>
-        <p><strong>Sentiment:</strong> <span id="tw-sentiment">-</span></p>
-        <p><strong>Original Text:</strong></p>
-        <p id="tw-text" style="font-style: italic; background: #eee; padding: 10px;">Select a point on the map...</p>
+        <p><strong>Selected:</strong> <span id="selection-count">0</span> tweet(s)</p>
+        
+        <div id="single-tweet-details" style="display: none;">
+            <p><strong>ID:</strong> <span id="tw-id">-</span></p>
+            <p><strong>Sentiment:</strong> <span id="tw-sentiment">-</span></p>
+            <p><strong>Token Weight Analysis:</strong></p>
+            <div id="tw-text">Select a point on the map...</div>
+        </div>
         
         <hr>
-        <h3>Perturbations (Analytics)</h3>
-        <button id="btn-synonym" disabled>Replace Synonyms</button>
-        <button id="btn-noise" disabled>Add Noise</button>
-        
-        <div id="results-area" style="display: none; margin-top: 20px;">
-            <p><strong>New Text:</strong> <span id="new-text"></span></p>
-            <p><strong>Cosine Similarity:</strong> <span id="similarity-score"></span></p>
+        <h3>Apply Perturbation</h3>
+        <div style="margin-bottom: 10px;">
+            <select id="perturbation-select" style="padding: 5px; width: 100%; margin-bottom: 10px;">
+                <option value="dict_synonym">Dictionary: Synonym</option>
+                <option value="dict_antonym">Dictionary: Antonym</option>
+                <option value="llm_paraphrase">LLM: Paraphrase</option>
+                <option value="llm_opposite">LLM: Opposite Sentiment</option>
+                <option value="noise">Add Random Noise</option>
+            </select>
         </div>
+        <button id="btn-perturb" disabled>Apply Selected</button>
+        <button id="btn-clear" disabled>Clear Trajectories</button>
+        <button id="btn-reset-zoom">Reset Zoom</button>
+        
+        <div id="results-area" style="display: none; margin-top: 15px; background: #f0f8ff; padding: 10px; border: 1px solid #cce7ff; border-radius: 4px;">
+            <p style="margin-top: 0; color: #0056b3;"><strong>Perturbed Text:</strong></p>
+            <p id="new-text" style="font-style: italic; margin-bottom: 0;">-</p>
+        </div>
+
+        <hr>
+        <h3>Perturbation Heatmap</h3>
+        <p style="font-size: 0.85em; color: #666;">Shows token fragility against different perturbation types (Simulated).</p>
+        <div id="heatmap-container"></div>
     </div>
 
     <script src="app.js"></script>
