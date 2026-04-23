@@ -24,10 +24,8 @@ To manage the ngrok URL efficiently, declare it as a global constant at the very
 
 ```javascript
 const API_BASE_URL = "the url given by the main in the kaggle notebook"
+```
 
-Note: This allows you to update the link in only one place each time you restart Kaggle.
-
-Input Files
 > **Note:** This allows you to update the link in only one place each time you restart Kaggle.
 
 ### Input Files Management
