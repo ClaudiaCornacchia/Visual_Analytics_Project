@@ -19,6 +19,7 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 ## sistema
 1. Aggiungere leggenda sentiment (neg, pos, neutro)/airline (compagnia) che cambia a seconda di quello selezionato
 2. Il reset dello zoom deve vedersi che è selezionabile solo se abbiamo cambiato la visualizzazione inziale
-3. sistemare spostamento mappa (forse creare mini menu con pulsante sposta con la freccetta / seleziona tweet ecc) come nell'immagine generata
+3. Creare varie modalità di interazione con la mappa con dei pulsanti tipo: sposta (4 frecce) / 
+  seleziona (1 / più tweet ritaglio) come in basso a destra nel mockup
 4. la heatmap dovrebbe essere per tutti e 5 i tipi di perturbazione
 capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
