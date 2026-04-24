@@ -1,10 +1,24 @@
 # TO DO
 ## Draft
-1. 
+### capire la seconda visualizzazione con interazione bidirezionale alla prima
+idea 1: heatmap in cui selezionando una parola mostra nella mappa gli altri tweet che contengono quella parola
+
+idea 2: Feature Importance Bar Chart (Stile LIME/SHAP)La visualizzazione regina dell'Explainability. Risponde alla domanda: 
+"Quali parole definiscono questo cluster?"Invece di una matrice, usi un Grafico a Barre Orizzontali (Bar Chart) che ordina le parole dalla più "pesante" 
+(quella che definisce maggiormente l'embedding) alla meno influente.Cos'è il Grafico B: Un Bar chart dinamico. Sull'asse Y ci sono i token (le parole), 
+sull'asse X c'è il "Peso Semantico" (quanto sposta l'embedding se rimossa).Perché è Explainability: Ti fa capire esattamente come l'LLM "legge" 
+la frase e a quali parole dà priorità per creare il vettore.La Bidirezionalità:Mappa $\rightarrow$ Grafico (Global Explanation): Disegni un lazo 
+(brush) su un cluster strano nella mappa UMAP. Il Bar Chart si aggiorna mostrando la media dei pesi delle parole di tutto il cluster. Scopri ad esempio 
+che quel cluster è tenuto insieme solo dal fatto che l'LLM ha dato un peso enorme alla parola "luggage" (bagaglio).Grafico $\rightarrow$ Mappa 
+(Local Explanation): Clicchi sulla barra della parola "luggage". 
+Sulla mappa UMAP i punti si colorano con una scala di rossi in base a quanto la parola "luggage" è importante per quel singolo tweet.
+
+grafico bonus: Parallel coordinates: Un grafico a coordinate parallele. Avrai 5 assi verticali, uno per ogni tipo di perturbazione (Synonym, Antonym, Paraphrase, Opposite, Noise). 
+Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la Cosine Similarity post-perturbazione.
 
 ## sistema
 1. Aggiungere leggenda sentiment (neg, pos, neutro)/airline (compagnia) che cambia a seconda di quello selezionato
 2. Il reset dello zoom deve vedersi che è selezionabile solo se abbiamo cambiato la visualizzazione inziale
-3. sistemare spostamento mappa (forse creare mini menu con pulsante sposta con la freccetta / seleziona tweet ecc)
+3. sistemare spostamento mappa (forse creare mini menu con pulsante sposta con la freccetta / seleziona tweet ecc) come nell'immagine generata
 4. la heatmap dovrebbe essere per tutti e 5 i tipi di perturbazione
 capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
