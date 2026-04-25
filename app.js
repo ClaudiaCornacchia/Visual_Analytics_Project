@@ -1,5 +1,5 @@
 // IMPORTANT: Change with your URL
-const API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
+const API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 
 const sentimentColors = {
     positive: "#22c55e",
@@ -40,71 +40,9 @@ svg.append("defs").append("marker")
     .attr("markerWidth", 6)
     .attr("markerHeight", 6)
     .attr("orient", "auto")
-    .append("path").attr("d", "M0,-5L10,0L0,5").attr("fill", "#555");
-
-let xScale, yScale;
-let selectedNodesData = [];
-const baseNodeRadius = 5;
- 
-const perturbationColors = {
-    dict_synonym:   "#2ca02c",
-    dict_antonym:   "#d62728",
-    llm_paraphrase: "#1f77b4",
-    llm_opposite:   "#ff7f0e",
-    noise:          "#7f7f7f"
-};
-
-// Define the zoom behavior
-const zoom = d3.zoom()
-    .scaleExtent([0.5, 20])
-    .filter(function (event) {
-        // blocca doppio-click zoom
-        if (event.type === "dblclick") return false;
-        // rotellina: sempre ok
-        if (event.type === "wheel") return true;
-        // mousedown: ok solo se NON siamo in brush mode e NON su un nodo
-        if (event.type === "mousedown") {
-            return !document.body.classList.contains("brushing") &&
-                   !event.target.classList.contains("node");
-        }
-        // touchstart/touchmove ecc: passa
-        return !event.ctrlKey && !event.button;
-    })
-    .on("zoom", function (event) {
-        zoomGroup.attr("transform", event.transform);
-        xAxisGroup.call(d3.axisBottom(event.transform.rescaleX(xScale)));
-        yAxisGroup.call(d3.axisLeft(event.transform.rescaleY(yScale)));
-    });
- 
-svg.call(zoom)
-    // disabilita il doppio-click zoom nativo di d3
-   .on("dblclick.zoom", null);
-
-// Aggiungiamo "panning" sul body solo durante il drag su area vuota
-svg.on("mousedown.panCursor", function (event) {
-    if (!document.body.classList.contains("brushing") &&
-        !event.target.classList.contains("node")) {
-        document.body.classList.add("panning");
-    }
-});
-window.addEventListener("mouseup",    () => document.body.classList.remove("panning"));
-window.addEventListener("mouseleave", () => document.body.classList.remove("panning"));
- 
-// SHIFT key toggles brushing mode
-let isMouseDown = false;
-window.addEventListener("mousedown", () => { isMouseDown = true; });
-window.addEventListener("mouseup",   () => { isMouseDown = false; });
- 
-window.addEventListener("keydown", (e) => {
-    if (e.key === "Shift" && !isMouseDown) {
-        document.body.classList.add("brushing");
-    }
-});
-window.addEventListener("keyup", (e) => {
-    if (e.key === "Shift" && !isMouseDown) {
-        document.body.classList.remove("brushing");
-    }
-});
+    .append("path")
+    .attr("d", "M0,-5L10,0L0,5")
+    .attr("fill", "#555");
 
 const btnPerturb = document.getElementById("btn-perturb");
 const btnClear = document.getElementById("btn-clear");
@@ -447,8 +385,8 @@ document.addEventListener("mouseleave", () => document.body.classList.remove("pa
 
 d3.csv("base_map.csv", function (d) {
     return {
-        id:        d.tweet_id,
-        text:      d.text,
+        id: d.tweet_id,
+        text: d.text,
         sentiment: d.sentiment,
         airline: d.airline,
         x: +d.x,
