@@ -265,7 +265,6 @@ function selectNodes(nodes, options = {}) {
         selectedNodesData = uniqueIncomingNodes;
     } else {
         const selectedMap = new Map(selectedNodesData.map(node => [node.id, node]));
-
         uniqueIncomingNodes.forEach(node => {
             if (toggle && selectedMap.has(node.id)) {
                 selectedMap.delete(node.id);
@@ -273,11 +272,34 @@ function selectNodes(nodes, options = {}) {
                 selectedMap.set(node.id, node);
             }
         });
-
         selectedNodesData = Array.from(selectedMap.values());
     }
 
     updateSelectionUI();
+
+    // Gestione TF-IDF
+    const loadingText = document.getElementById("tfidf-loading");
+    if (selectedNodesData.length > 5) { 
+        loadingText.style.display = "block";
+        const selectedTexts = selectedNodesData.map(n => n.text);
+
+        fetch(`${API_BASE_URL}/api/tfidf`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
+            body: JSON.stringify({ texts: selectedTexts })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingText.style.display = "none";
+            updateTFIDFChart(data);
+        })
+        .catch(err => {
+            console.error("TF-IDF Error:", err);
+            loadingText.style.display = "none";
+        });
+    } else {
+        updateTFIDFChart([]);
+    }
 }
 
 function fitSelectionToView(nodes) {
@@ -701,3 +723,126 @@ if (btnZoomOut) {
 if (btnPanSelection) {
     btnPanSelection.addEventListener("click", () => centerSelectionInView(selectedNodesData));
 }
+
+// FEATURE: TF-IDF KEYWORD BAR CHART 
+
+// 1. Setup Struttura SVG per il Bar Chart
+const tfMargin = {top: 20, right: 30, bottom: 40, left: 100};
+const tfContainer = document.getElementById('tfidf-panel');
+let tfWidth = Math.max(tfContainer.clientWidth - 20, 300); // Evita larghezze negative se nascosto
+const tfHeight = 300;
+
+const tfSvg = d3.select("#tfidf-chart")
+    .append("svg")
+    .attr("width", tfWidth)
+    .attr("height", tfHeight)
+    .attr("viewBox", `0 0 ${tfWidth} ${tfHeight}`)
+    .attr("preserveAspectRatio", "xMidYMid meet")
+    .append("g")
+    .attr("transform", `translate(${tfMargin.left},${tfMargin.top})`);
+
+let tfInnerWidth = tfWidth - tfMargin.left - tfMargin.right;
+const tfInnerHeight = tfHeight - tfMargin.top - tfMargin.bottom;
+
+// Scale (Y per le parole, X per il punteggio)
+const tfYScale = d3.scaleBand().range([0, tfInnerHeight]).padding(0.2);
+let tfXScale = d3.scaleLinear().range([0, tfInnerWidth]);
+
+const tfYAxisGroup = tfSvg.append("g").attr("class", "y-axis");
+const tfXAxisGroup = tfSvg.append("g").attr("transform", `translate(0,${tfInnerHeight})`).attr("class", "x-axis");
+
+let activeKeyword = null; // Memorizza la parola attualmente cliccata
+
+// 2. Funzione per Disegnare e Aggiornare il Grafico
+function updateTFIDFChart(data) {
+    const placeholder = d3.select("#tfidf-chart em");
+
+    // 1. Normalizza i dati provenienti dal backend
+    if (data && !Array.isArray(data) && typeof data === 'object') {
+        data = Object.entries(data).map(([word, score]) => ({ word, score }));
+    } else if (data && Array.isArray(data) && Array.isArray(data[0])) {
+        data = data.map(d => ({ word: d[0], score: d[1] }));
+    }
+
+    // Se non ci sono dati (es. selezione vuota o < 6)
+    if (!data || data.length === 0) {
+        tfSvg.selectAll(".tfidf-bar").remove();
+        tfYAxisGroup.selectAll("*").remove();
+        tfXAxisGroup.selectAll("*").remove();
+        activeKeyword = null;
+        return;
+    }
+
+    // ABBIAMO I DATI! Nascondiamo il testo segnaposto definitivamente
+    placeholder.style("display", "none");
+
+    // Ricalcola la larghezza dinamicamente
+    if (tfContainer.clientWidth > 0) {
+        tfWidth = Math.max(tfContainer.clientWidth, 300) - 20;
+        tfInnerWidth = Math.max(tfWidth - tfMargin.left - tfMargin.right, 10);
+        
+        d3.select("#tfidf-chart svg")
+            .attr("width", tfWidth)
+            .attr("viewBox", `0 0 ${tfWidth} ${tfHeight}`);
+            
+        tfXScale.range([0, tfInnerWidth]);
+    }
+
+    const getScore = d => d.score !== undefined ? d.score : (d.weight || 0);
+
+    // Aggiorna i domini delle scale
+    tfYScale.domain(data.map(d => d.word));
+    tfXScale.domain([0, d3.max(data, getScore) || 1]);
+
+    // Animazione assi
+    tfYAxisGroup.transition().duration(500).call(d3.axisLeft(tfYScale));
+    tfXAxisGroup.transition().duration(500).call(d3.axisBottom(tfXScale).ticks(5));
+
+    // Data Join per le barre
+    const bars = tfSvg.selectAll(".tfidf-bar").data(data, d => d.word);
+
+    // Rimuovi le barre vecchie
+    bars.exit().transition().duration(300).attr("width", 0).remove();
+
+    // Aggiungi le nuove barre
+    const barsEnter = bars.enter()
+        .append("rect")
+        .attr("class", "tfidf-bar")
+        .attr("y", d => tfYScale(d.word))
+        .attr("height", tfYScale.bandwidth())
+        .attr("x", 0)
+        .attr("width", 0) 
+        .attr("fill", "#3b82f6"); 
+
+    // Unisci e Anima
+    barsEnter.merge(bars)
+        .transition().duration(500)
+        .attr("y", d => tfYScale(d.word))
+        .attr("height", tfYScale.bandwidth())
+        .attr("width", d => Math.max(0, tfXScale(getScore(d))));
+
+    // --- INTERAZIONE 2: DAL GRAFICO ALLA MAPPA (Evidenziazione Inversa) ---
+    barsEnter.merge(bars).on("click", function(event, d) {
+        const clickedWord = d.word.toLowerCase();
+
+        if (activeKeyword === clickedWord) {
+            activeKeyword = null;
+            d3.selectAll(".tfidf-bar").classed("active", false);
+            d3.selectAll("circle.node").style("opacity", 0.8).style("stroke", "none"); 
+        } else {
+            activeKeyword = clickedWord;
+            d3.selectAll(".tfidf-bar").classed("active", b => b.word.toLowerCase() === activeKeyword);
+
+            d3.selectAll("circle.node")
+                .style("opacity", function(nodeData) {
+                    const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
+                    return hasWord ? 1 : 0.05; 
+                })
+                .style("stroke", function(nodeData) {
+                    const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
+                    return hasWord ? "#ff7f0e" : "none"; 
+                })
+                .style("stroke-width", "2px");
+        }
+    });
+} 

@@ -76,6 +76,24 @@
         .brush .selection { stroke: #475569; stroke-dasharray: 4,4; fill: rgba(148, 163, 184, 0.2); }
         .brush .overlay { cursor: crosshair; }
         .axis-label { font-size: 14px; font-weight: bold; fill: #475569; text-anchor: middle; }
+        
+        /* Stile per le barre del TF-IDF */
+        .tfidf-bar {
+            fill: #1f77b4;
+            cursor: pointer;
+            transition: fill 0.3s, opacity 0.3s;
+        }
+
+        .tfidf-bar:hover {
+            fill: #ff7f0e; /* Colore arancione al passaggio del mouse */
+        }
+
+        /* Quando una barra è attiva (cliccata) */
+        .tfidf-bar.active {
+            fill: #d62728 !important; /* Rosso scuro */
+            stroke: black;
+            stroke-width: 1.5px;
+        }
     </style>
 </head>
 <body>
@@ -162,6 +180,27 @@
                 <em>Select a single tweet to view heatmap.</em>
             </div>
         </div>
+
+        <div class="card" id="tfidf-panel">
+            <div class="card-title">
+                <span>CLUSTER KEYWORDS (TF-IDF)</span>
+                <div class="legend-box">
+                    SCORE MEANING:<br>
+                    Longer Bar = Highly distinctive<br>
+                    <strong style="color: #1f77b4; cursor: pointer;">Click a bar to filter map!</strong>
+                </div>
+            </div>
+            
+            <div id="tfidf-loading" style="display: none; text-align: center; color: #f59e0b; font-size: 0.9rem; margin-top: 10px;">
+                <em>Calculating semantic weights...</em>
+            </div>
+            
+            <div id="tfidf-chart" style="min-height: 250px; text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 20px;">
+                <em>Select a cluster to view keywords.</em>
+            </div>
+        </div>
+
+       
     </div>
 
     <script src="app.js"></script>
