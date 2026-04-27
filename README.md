@@ -20,13 +20,19 @@
 
 ### API Base URL Configuration
 
-To manage the ngrok URL efficiently, declare it as a global constant at the very top of your `app.js` file:
+The frontend reads the API base URL in this order:
 
-```javascript
-const API_BASE_URL = "the url given by the main in the kaggle notebook"
+1. `?apiBaseUrl=https://your-ngrok-url.ngrok-free.dev` in the page URL
+2. The last `apiBaseUrl` value saved in `localStorage`
+3. The fallback `DEFAULT_API_BASE_URL` at the top of `app.js`
+
+Example:
+
+```text
+http://localhost:5500/?apiBaseUrl=https://your-ngrok-url.ngrok-free.dev
 ```
 
-> **Note:** This allows you to update the link in only one place each time you restart Kaggle.
+> **Note:** This makes ngrok URL changes much easier to test without editing code every time you restart Kaggle.
 
 ### Input Files Management
 

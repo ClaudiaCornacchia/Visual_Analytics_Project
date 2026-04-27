@@ -1,5 +1,25 @@
-// IMPORTANT: Change with your URL
-const API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
+// IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
+const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
+const API_BASE_URL = (() => {
+    const params = new URLSearchParams(window.location.search);
+    const queryUrl = params.get("apiBaseUrl");
+    const savedUrl = window.localStorage.getItem("apiBaseUrl");
+    const resolvedUrl = queryUrl || savedUrl || DEFAULT_API_BASE_URL;
+
+    if (queryUrl) {
+        window.localStorage.setItem("apiBaseUrl", queryUrl);
+    }
+
+    return resolvedUrl.replace(/\/$/, "");
+})();
+
+function postJson(path, payload) {
+    return fetch(`${API_BASE_URL}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    }).then(parseApiResponse);
+}
 
 const sentimentColors = {
     positive: "#22c55e",
@@ -14,6 +34,8 @@ const perturbationColors = {
     llm_opposite: "#ff7f0e",
     noise: "#7f7f7f"
 };
+
+const keywordHighlightColor = "#facc15";
 
 const mapContainer = document.getElementById("scatterplot-container");
 const rect = mapContainer.getBoundingClientRect();
@@ -50,8 +72,36 @@ const btnResetZoom = document.getElementById("btn-reset-zoom");
 const btnMultiSelect = document.getElementById("btn-multi-select");
 const btnZoomSelection = document.getElementById("btn-zoom-selection");
 const btnZoomOut = document.getElementById("btn-zoom-out");
-const btnPanSelection = document.getElementById("btn-pan-selection");
+let btnPanSelection = document.getElementById("btn-pan-selection");
 const colorEncodingSelect = document.getElementById("color-encoding-select");
+const mapToolbar = document.getElementById("map-toolbar");
+
+btnMultiSelect.classList.remove("icon-btn");
+btnMultiSelect.textContent = "Box Select";
+btnMultiSelect.title = "Select multiple tweets with a box";
+btnMultiSelect.style.minWidth = "92px";
+btnMultiSelect.style.fontWeight = "600";
+
+const centerButton = document.createElement("button");
+centerButton.id = "btn-pan-selection";
+centerButton.className = "toolbar-pill";
+centerButton.textContent = "Center";
+centerButton.title = "Center current selection";
+centerButton.disabled = true;
+centerButton.style.minWidth = "78px";
+centerButton.style.fontWeight = "600";
+btnPanSelection.replaceWith(centerButton);
+btnPanSelection = centerButton;
+
+const btnClearSelection = document.createElement("button");
+btnClearSelection.id = "btn-clear-selection";
+btnClearSelection.className = "toolbar-pill";
+btnClearSelection.textContent = "Clear Selection";
+btnClearSelection.title = "Clear current selection";
+btnClearSelection.disabled = true;
+btnClearSelection.style.minWidth = "118px";
+btnClearSelection.style.fontWeight = "600";
+mapToolbar.insertBefore(btnClearSelection, btnZoomSelection);
 
 let xScale;
 let yScale;
@@ -60,8 +110,55 @@ let selectedNodesData = [];
 let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
 let brushModeActive = false;
+let perturbationResults = [];
+let activePerturbationKey = null;
+let targetWordForPerturbation = null;
 
-const baseNodeRadius = 5;
+const baseNodeRadius = 6;
+const axisTickCount = 8;
+const perturbationLabels = {
+    dict_synonym: "Synonym",
+    dict_antonym: "Antonym",
+    llm_paraphrase: "Paraphrase",
+    llm_opposite: "Opposite",
+    noise: "Noise"
+};
+
+function setResetButtonVisibility(visible) {
+    if (!btnResetZoom) return;
+    btnResetZoom.style.display = visible ? "inline-flex" : "none";
+    btnResetZoom.disabled = !visible;
+}
+
+function setCenterButtonEnabled(enabled) {
+    if (!btnPanSelection) return;
+    btnPanSelection.disabled = !enabled;
+    if (enabled) {
+        btnPanSelection.removeAttribute("disabled");
+    } else {
+        btnPanSelection.setAttribute("disabled", "");
+    }
+}
+
+function stopViewTransitions() {
+    svg.interrupt();
+    xAxisGroup.interrupt();
+    yAxisGroup.interrupt();
+}
+
+function applyZoomTransform(transform, duration = 0) {
+    stopViewTransitions();
+
+    if (duration > 0) {
+        svg.transition()
+            .duration(duration)
+            .ease(d3.easeCubicOut)
+            .call(zoom.transform, transform);
+        return;
+    }
+
+    svg.call(zoom.transform, transform);
+}
 
 function isViewTransformed() {
     const t = d3.zoomTransform(svg.node());
@@ -129,6 +226,71 @@ function updateNodeColors() {
             circle.style("fill", null);
         }
     });
+}
+
+function setPerturbationDisplay(result) {
+    const output = document.getElementById("new-text");
+    if (!result) {
+        output.innerHTML = "<span>-</span>";
+        return;
+    }
+
+    const label = perturbationLabels[result.type] || result.type;
+    output.innerHTML = `<strong>${label}</strong>${result.nodeId ? ` · <small>Tweet ${result.nodeId}</small>` : ""}<br>${result.text}`;
+}
+
+function renderPerturbationCarousel() {
+    const carousel = document.getElementById("perturbation-carousel");
+    const emptyState = document.getElementById("perturbation-empty");
+
+    carousel.innerHTML = "";
+
+    if (!perturbationResults.length) {
+        emptyState.style.display = "block";
+        setPerturbationDisplay(null);
+        return;
+    }
+
+    emptyState.style.display = "block";
+    emptyState.style.display = "none";
+
+    perturbationResults.forEach(result => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = `perturbation-chip${result.key === activePerturbationKey ? " active" : ""}`;
+        chip.textContent = `${perturbationLabels[result.type] || result.type}`;
+        chip.addEventListener("click", () => {
+            activePerturbationKey = result.key;
+            setPerturbationDisplay(result);
+            renderPerturbationCarousel();
+        });
+        carousel.appendChild(chip);
+    });
+
+    const activeResult = perturbationResults.find(result => result.key === activePerturbationKey) || perturbationResults[perturbationResults.length - 1];
+    activePerturbationKey = activeResult.key;
+    setPerturbationDisplay(activeResult);
+}
+
+function storePerturbationResult(nodeId, type, text) {
+    const key = `${nodeId}-${type}`;
+    const nextResult = { key, nodeId, type, text };
+    const existingIndex = perturbationResults.findIndex(result => result.key === key);
+
+    if (existingIndex >= 0) {
+        perturbationResults[existingIndex] = nextResult;
+    } else {
+        perturbationResults.push(nextResult);
+    }
+
+    activePerturbationKey = key;
+    renderPerturbationCarousel();
+}
+
+function resetPerturbationResults() {
+    perturbationResults = [];
+    activePerturbationKey = null;
+    renderPerturbationCarousel();
 }
 
 async function parseApiResponse(response) {
@@ -225,7 +387,8 @@ function updateSelectionUI() {
 
     if (btnPerturb) btnPerturb.disabled = !hasSelection;
     if (btnClear) btnClear.disabled = !hasSelection;
-    if (btnPanSelection) btnPanSelection.disabled = !hasSelection;
+    setCenterButtonEnabled(hasSelection);
+    if (btnClearSelection) btnClearSelection.disabled = !hasSelection;
 
     document.getElementById("selection-count").innerText = `${selectedNodesData.length} tweet${selectedNodesData.length === 1 ? "" : "s"} selected`;
     renderSelectionLegend(selectedNodesData);
@@ -234,17 +397,18 @@ function updateSelectionUI() {
     if (!hasSelection) {
         document.getElementById("tw-id").innerText = "-";
         document.getElementById("tw-sentiment").innerText = "-";
+        document.getElementById("tw-text-simple").innerText = "Select a point on the map to see token weights...";
         document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
-        document.getElementById("results-area").style.display = "none";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
+        resetPerturbationResults();
         return;
     }
 
-    document.getElementById("results-area").style.display = "block";
 
     if (!singleSelection) {
         document.getElementById("tw-id").innerText = "Multiple";
         document.getElementById("tw-sentiment").innerText = "Mixed";
+        document.getElementById("tw-text-simple").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         document.getElementById("tw-text").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         d3.select("#heatmap-container").html("<em>Heatmap available for a single selected tweet.</em>");
         return;
@@ -255,6 +419,30 @@ function updateSelectionUI() {
     document.getElementById("tw-sentiment").innerText = node.sentiment;
     renderTokenAnalysis(node.text);
     renderHeatmap(node.text);
+}
+
+function clearSelection() {
+    selectedNodesData = [];
+    clearKeywordHighlight();
+    resetPerturbationResults();
+    linkLayer.selectAll("*").remove();
+    nodeLayer.selectAll("circle.node")
+        .classed("selected", false)
+        .classed("selection-muted", false)
+        .classed("dimmed", false)
+        .attr("data-perturbed", "false")
+        .transition()
+        .duration(800)
+        .attr("cx", d => xScale(d.x))
+        .attr("cy", d => yScale(d.y))
+        .style("fill", d => currentColorEncoding === "airline" ? airlineColorScale(d.airline) : null)
+        .style("stroke", null)
+        .style("stroke-width", null);
+
+    targetWordForPerturbation = null;
+    if (document.getElementById("target-word-info")) document.getElementById("target-word-info").style.display = "none";
+    updateTFIDFChart([]);
+    updateSelectionUI();
 }
 
 function selectNodes(nodes, options = {}) {
@@ -277,18 +465,17 @@ function selectNodes(nodes, options = {}) {
 
     updateSelectionUI();
 
+    if (selectedNodesData.length > 0) {
+        setCenterButtonEnabled(true);
+    }
+
     // Gestione TF-IDF
     const loadingText = document.getElementById("tfidf-loading");
     if (selectedNodesData.length > 5) { 
         loadingText.style.display = "block";
         const selectedTexts = selectedNodesData.map(n => n.text);
 
-        fetch(`${API_BASE_URL}/api/tfidf`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
-            body: JSON.stringify({ texts: selectedTexts })
-        })
-        .then(response => response.json())
+        postJson("/api/tfidf", { texts: selectedTexts })
         .then(data => {
             loadingText.style.display = "none";
             updateTFIDFChart(data);
@@ -302,29 +489,30 @@ function selectNodes(nodes, options = {}) {
     }
 }
 
-function fitSelectionToView(nodes) {
+function fitSelectionToView(nodes, duration = 420) {
     if (!nodes.length) return;
 
-    const points = nodes.map(getCurrentNodePosition);
+    const points = nodes.map(node => ({
+        x: xScale(node.x),
+        y: yScale(node.y)
+    }));
     const xExtent = d3.extent(points, point => point.x);
     const yExtent = d3.extent(points, point => point.y);
     const dx = Math.max(30, xExtent[1] - xExtent[0]);
     const dy = Math.max(30, yExtent[1] - yExtent[0]);
-    const padding = 60;
-    const scale = Math.max(0.5, Math.min(20, 0.9 / Math.max(dx / (width - padding), dy / (height - padding))));
+    const padding = 110;
+    const scale = Math.max(0.5, Math.min(8, 0.72 / Math.max(dx / (width - padding), dy / (height - padding))));
     const centerX = (xExtent[0] + xExtent[1]) / 2;
     const centerY = (yExtent[0] + yExtent[1]) / 2;
     const transform = d3.zoomIdentity
         .translate(width / 2 - scale * centerX, height / 2 - scale * centerY)
         .scale(scale);
 
-    svg.transition()
-        .duration(750)
-        .ease(d3.easeCubicOut)
-        .call(zoom.transform, transform);
+    applyZoomTransform(transform, duration);
+    
 }
 
-function centerSelectionInView(nodes) {
+function centerSelectionInView(nodes, duration = 320) {
     if (!nodes.length) return;
 
     const currentTransform = d3.zoomTransform(svg.node());
@@ -335,10 +523,7 @@ function centerSelectionInView(nodes) {
         .translate(width / 2 - currentTransform.k * centerX, height / 2 - currentTransform.k * centerY)
         .scale(currentTransform.k);
 
-    svg.transition()
-        .duration(600)
-        .ease(d3.easeCubicOut)
-        .call(zoom.transform, transform);
+    applyZoomTransform(transform, duration);
 }
 
 function setBrushMode(active) {
@@ -359,12 +544,13 @@ const zoom = d3.zoom()
     })
     .on("zoom", function (event) {
         zoomGroup.attr("transform", event.transform);
+        setResetButtonVisibility(isViewTransformed() || hasOffscreenPerturbedNode());
 
-        xAxisGroup.call(d3.axisBottom(event.transform.rescaleX(xScale)).ticks(10))
-            .style("font-size", "12px");
+        xAxisGroup.call(d3.axisBottom(event.transform.rescaleX(xScale)).ticks(axisTickCount))
+            .style("font-size", "13px");
 
-        yAxisGroup.call(d3.axisLeft(event.transform.rescaleY(yScale)).ticks(10))
-            .style("font-size", "12px");
+        yAxisGroup.call(d3.axisLeft(event.transform.rescaleY(yScale)).ticks(axisTickCount))
+            .style("font-size", "13px");
     });
 
 const brush = d3.brush()
@@ -382,8 +568,14 @@ const brush = d3.brush()
         });
 
         selectNodes(brushedNodes);
+        if (brushedNodes.length > 0) {
+            setCenterButtonEnabled(true);
+        }
         brushLayer.call(brush.move, null);
         setBrushMode(false);
+        
+        fitSelectionToView(brushedNodes, 380);
+        console.log("Brushed:", brushedNodes.length);
     });
 
 svg.call(zoom).on("dblclick.zoom", null);
@@ -397,8 +589,13 @@ svg.on("mousedown.panCursor", function (event) {
 });
 
 svg.on("click.resetDim", function (event) {
+    if (
+        event.target.closest("#map-toolbar") ||
+        event.target.closest("#details-panel")
+    ) return;
+
     if (!event.target.classList.contains("node")) {
-        nodeLayer.selectAll("circle.node").classed("dimmed", false);
+        clearSelection();
     }
 });
 
@@ -432,12 +629,12 @@ d3.csv("base_map.csv", function (d) {
         .range([height - margin.bottom, margin.top]);
 
     xAxisGroup.attr("transform", `translate(0,${height - margin.bottom})`)
-        .call(d3.axisBottom(xScale).ticks(10))
-        .style("font-size", "12px");
+        .call(d3.axisBottom(xScale).ticks(axisTickCount))
+        .style("font-size", "13px");
 
     yAxisGroup.attr("transform", `translate(${margin.left},0)`)
-        .call(d3.axisLeft(yScale).ticks(10))
-        .style("font-size", "12px");
+        .call(d3.axisLeft(yScale).ticks(axisTickCount))
+        .style("font-size", "13px");
 
     const bigDataset = data.length > 2000;
     airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.airline))]);
@@ -451,10 +648,11 @@ d3.csv("base_map.csv", function (d) {
         .attr("id", d => `node-${d.id}`)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .attr("r", bigDataset ? 2 : baseNodeRadius)
+        .attr("r", bigDataset ? 2.6 : baseNodeRadius)
         .attr("shape-rendering", "crispEdges")
         .attr("data-perturbed", "false")
-        .style("stroke-width", bigDataset ? "0px" : "0.5px")
+        .style("stroke", "none")
+        .style("stroke-width", "0px")
         .style("opacity", bigDataset ? 0.5 : 0.8)
         .on("click", function (event, d) {
             const isMultiAdd = event.ctrlKey || event.metaKey;
@@ -482,7 +680,8 @@ d3.csv("base_map.csv", function (d) {
         renderSelectionLegend(selectedNodesData);
     });
 
-    document.getElementById("results-area").style.display = "none";
+    setResetButtonVisibility(false);
+    resetPerturbationResults();
     updateSelectionUI();
 }).catch(function (error) {
     console.error("Error loading CSV:", error);
@@ -490,15 +689,13 @@ d3.csv("base_map.csv", function (d) {
 });
 
 function renderTokenAnalysis(text) {
+    // Mostra il testo originale semplice
+    d3.select("#tw-text-simple").text(text);
+    
     const container = d3.select("#tw-text");
     container.html("<em>Calculating token weights...</em>");
 
-    fetch(`${API_BASE_URL}/api/token_weights`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
-        body: JSON.stringify({ text })
-    })
-        .then(parseApiResponse)
+    postJson("/api/token_weights", { text })
         .then(data => {
             if (!Array.isArray(data) || data.length === 0) {
                 container.html("<em>No token data available.</em>");
@@ -514,8 +711,23 @@ function renderTokenAnalysis(text) {
                     .attr("class", "token")
                     .style("background-color", colorScale(item.weight))
                     .style("color", item.weight > maxWeight * 0.5 ? "white" : "black")
-                    .style("text-shadow", "none")
-                    .text(`${item.word} `);
+                    .style("cursor", "pointer") // Puntatore a manina
+                    .text(`${item.word} `)
+                    .on("click", function() {
+                        // 1. Spegni eventuali altre parole selezionate
+                        container.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)");
+                        
+                        // 2. Evidenzia questa parola (bordo blu)
+                        d3.select(this)
+                          .style("outline", "2px solid #1d4ed8")
+                          .style("box-shadow", "0 2px 5px rgba(0,0,0,0.2)")
+                          .style("transform", "scale(1.1)");
+
+                        // 3. Salva la parola e mostra il banner
+                        targetWordForPerturbation = item.word.trim();
+                        document.getElementById("target-word-info").style.display = "block";
+                        document.getElementById("target-word-display").innerText = targetWordForPerturbation;
+                    });
             });
         })
         .catch(err => {
@@ -524,6 +736,17 @@ function renderTokenAnalysis(text) {
         });
 }
 
+// --- NUOVO: Cancella la parola target ---
+const btnClearTarget = document.getElementById("btn-clear-target");
+if (btnClearTarget) {
+    btnClearTarget.addEventListener("click", () => {
+        targetWordForPerturbation = null;
+        document.getElementById("target-word-info").style.display = "none";
+        d3.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)");
+    });
+}
+
+// --- MODIFICA: Invio dati perturbazione ---
 document.getElementById("btn-perturb").addEventListener("click", () => {
     if (selectedNodesData.length === 0) return;
 
@@ -531,17 +754,18 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
     const arrowColor = perturbationColors[perturbType];
 
     document.getElementById("results-area").style.display = "block";
-    document.getElementById("new-text").innerText = "Loading perturbation from backend...";
+    document.getElementById("new-text").innerHTML = "<span>Loading perturbation from backend...</span>";
 
     selectedNodesData.forEach(node => {
-        fetch(`${API_BASE_URL}/api/perturb`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
-            body: JSON.stringify({ text: node.text, type: perturbType })
-        })
-            .then(parseApiResponse)
-            .then(data => {
-                document.getElementById("new-text").innerText = data.new_text;
+        // AGGIUNGIAMO 'target_word' NEL PAYLOAD INVIATO AL SERVER
+        postJson("/api/perturb", { 
+
+            text: node.text, 
+            type: perturbType,
+            target_word: targetWordForPerturbation 
+            
+        }).then(data => {
+                storePerturbationResult(node.id, perturbType, data.new_text);
 
                 const startX = xScale(node.x);
                 const startY = yScale(node.y);
@@ -575,12 +799,12 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
                     .attr("cx", endX)
                     .attr("cy", endY)
                     .style("fill", arrowColor)
-                    .style("stroke", "#000")
-                    .style("stroke-width", "2px");
+                    .style("stroke", null)
+                    .style("stroke-width", null);
             })
             .catch(error => {
                 console.error("Fetch Error:", error);
-                document.getElementById("new-text").innerText = error.message;
+                document.getElementById("new-text").innerHTML = `<span>${error.message}</span>`;
             });
     });
 });
@@ -599,18 +823,14 @@ document.getElementById("btn-clear").addEventListener("click", () => {
         .style("stroke-width", null);
 
     document.getElementById("results-area").style.display = selectedNodesData.length ? "block" : "none";
+    resetPerturbationResults();
 });
 
 function renderHeatmap(text) {
     const container = d3.select("#heatmap-container");
     container.html("<em>Generating heatmap matrix...</em>");
 
-    fetch(`${API_BASE_URL}/api/heatmap`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
-        body: JSON.stringify({ text })
-    })
-        .then(parseApiResponse)
+    postJson("/api/heatmap", { text })
         .then(heatmapData => {
             if (heatmapData.error) {
                 container.html(`<div style="color: red; padding: 10px;"><strong>Backend Error:</strong> ${heatmapData.error}</div>`);
@@ -649,12 +869,12 @@ function renderHeatmap(text) {
                 .selectAll("text")
                 .attr("transform", "rotate(-20)")
                 .style("text-anchor", "end")
-                .style("font-size", "10px");
+                .style("font-size", "11px");
 
             hmSvg.append("g")
                 .attr("transform", `translate(${margin.left},0)`)
                 .call(d3.axisLeft(yBand))
-                .style("font-size", "10px");
+                .style("font-size", "11px");
 
             hmSvg.selectAll("rect")
                 .data(heatmapData)
@@ -689,10 +909,7 @@ function renderHeatmap(text) {
 
 if (btnResetZoom) {
     btnResetZoom.addEventListener("click", () => {
-        svg.transition()
-            .duration(750)
-            .ease(d3.easeCubicOut)
-            .call(zoom.transform, d3.zoomIdentity);
+        applyZoomTransform(d3.zoomIdentity, 320);
     });
 }
 
@@ -702,10 +919,18 @@ if (btnMultiSelect) {
     });
 }
 
+if (btnClearSelection) {
+    btnClearSelection.addEventListener("click", (event) => {
+        event.stopPropagation();   
+        clearSelection();
+    });
+}
+
 if (btnZoomSelection) {
     btnZoomSelection.addEventListener("click", () => {
+        stopViewTransitions();
         svg.transition()
-            .duration(350)
+            .duration(220)
             .ease(d3.easeCubicOut)
             .call(zoom.scaleBy, 1.25);
     });
@@ -713,15 +938,19 @@ if (btnZoomSelection) {
 
 if (btnZoomOut) {
     btnZoomOut.addEventListener("click", () => {
+        stopViewTransitions();
         svg.transition()
-            .duration(350)
+            .duration(220)
             .ease(d3.easeCubicOut)
             .call(zoom.scaleBy, 0.8);
     });
 }
 
 if (btnPanSelection) {
-    btnPanSelection.addEventListener("click", () => centerSelectionInView(selectedNodesData));
+    btnPanSelection.addEventListener("click", () => {
+        centerSelectionInView(selectedNodesData);
+        setCenterButtonEnabled(false);
+    });
 }
 
 // FEATURE: TF-IDF KEYWORD BAR CHART 
@@ -753,6 +982,20 @@ const tfXAxisGroup = tfSvg.append("g").attr("transform", `translate(0,${tfInnerH
 
 let activeKeyword = null; // Memorizza la parola attualmente cliccata
 
+function clearKeywordHighlight() {
+    activeKeyword = null;
+    d3.selectAll(".tfidf-bar")
+        .classed("active", false)
+        .style("fill", null)
+        .style("stroke", null)
+        .style("stroke-width", null);
+    nodeLayer.selectAll("circle.node")
+        .classed("dimmed", false)
+        .style("opacity", 0.8)
+        .style("stroke", null)
+        .style("stroke-width", null);
+}
+
 // 2. Funzione per Disegnare e Aggiornare il Grafico
 function updateTFIDFChart(data) {
     const placeholder = d3.select("#tfidf-chart em");
@@ -769,7 +1012,7 @@ function updateTFIDFChart(data) {
         tfSvg.selectAll(".tfidf-bar").remove();
         tfYAxisGroup.selectAll("*").remove();
         tfXAxisGroup.selectAll("*").remove();
-        activeKeyword = null;
+        clearKeywordHighlight();
         return;
     }
 
@@ -826,12 +1069,14 @@ function updateTFIDFChart(data) {
         const clickedWord = d.word.toLowerCase();
 
         if (activeKeyword === clickedWord) {
-            activeKeyword = null;
-            d3.selectAll(".tfidf-bar").classed("active", false);
-            d3.selectAll("circle.node").style("opacity", 0.8).style("stroke", "none"); 
+            clearKeywordHighlight();
         } else {
             activeKeyword = clickedWord;
-            d3.selectAll(".tfidf-bar").classed("active", b => b.word.toLowerCase() === activeKeyword);
+            d3.selectAll(".tfidf-bar")
+                .classed("active", b => b.word.toLowerCase() === activeKeyword)
+                .style("fill", b => b.word.toLowerCase() === activeKeyword ? keywordHighlightColor : null)
+                .style("stroke", b => b.word.toLowerCase() === activeKeyword ? "#0f172a" : null)
+                .style("stroke-width", b => b.word.toLowerCase() === activeKeyword ? "1.5px" : null);
 
             d3.selectAll("circle.node")
                 .style("opacity", function(nodeData) {
@@ -840,9 +1085,11 @@ function updateTFIDFChart(data) {
                 })
                 .style("stroke", function(nodeData) {
                     const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                    return hasWord ? "#ff7f0e" : "none"; 
+                    return hasWord ? keywordHighlightColor : null;
                 })
-                .style("stroke-width", "2px");
+                .style("stroke-width", function(nodeData) {
+                    return nodeData.text.toLowerCase().includes(activeKeyword) ? "2.5px" : null;
+                });
         }
     });
 } 
