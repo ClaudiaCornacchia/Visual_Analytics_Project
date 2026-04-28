@@ -23,10 +23,12 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 
 
 ## sistema
-1. Aggiungere leggenda sentiment (neg, pos, neutro)/airline (compagnia) che cambia a seconda di quello selezionato
+1. Aggiungere legenda sentiment (neg, pos, neutro)/airline (compagnia) che cambia a seconda di quello selezionato
 2. Il reset dello zoom deve vedersi che è selezionabile solo se abbiamo cambiato la visualizzazione inziale
 3. Creare varie modalità di interazione con la mappa con dei pulsanti tipo: sposta (4 frecce) / 
   seleziona (1 / più tweet ritaglio) come in basso a destra nel mockup
-4. la heatmap dovrebbe essere per tutti e 5 i tipi di perturbazione
-capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
+4. Nella heatmap capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
 5. Far visualizzare un contatore che mostra quanti tweet ci sono, quanti per ogni compagnia ecc..
+6. Nella perturbazione del rumore potremmo aggiungere molte più parole casuali (non solo 1) per vedere se c'è un effetto cumulativo
+7. Spostare la sezione Token Analysis in Perturbation controller così è piu intuitivo che le parole si selzionano da lì
+8. La sezione perturbazione potrebbe essere più inuitiva 

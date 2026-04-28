@@ -66,3 +66,13 @@ When using UMAP, always remember to:
    - ⬜ White: Low/No impact on the overall meaning.   
 
   Note: If a word lacks a direct synonym or antonym (e.g., proper nouns, stop words), the text remains unchanged. The semantic shift is exactly 0.0, and the heatmap cell will be white.
+
+
+## Perturbation Types
+
+1. **Synonym Replacement**: Replaces the user selected word with a synonym, if no synonym is available the text remains unchanged and if the user doesn't select any word the first available word with a synonym will be used.
+2. **Antonym Replacement**: Replaces the user selected word with an antonym if no antonym is available the text remains unchanged and if the user doesn't select any word the first available word with an antonym will be used.
+3. **Remove Word**: Removes the user selected word from the text, if the user doesn't select any word the first available word will be removed.
+4. **LLM Paraphrase**: The entire tweet is paraphrased by the LLM, no word selection is needed.
+5. **LLM Opposite**: The entire tweet is transformed to its opposite meaning by the LLM, no word selection is needed.
+6. **Noise**: Adds a random word to the text
