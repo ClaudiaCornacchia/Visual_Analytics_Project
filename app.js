@@ -1,5 +1,5 @@
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -30,6 +30,7 @@ const sentimentColors = {
 const perturbationColors = {
     dict_synonym: "#2ca02c",
     dict_antonym: "#d62728",
+    dict_remove: "#9333ea",
     llm_paraphrase: "#1f77b4",
     llm_opposite: "#ff7f0e",
     noise: "#7f7f7f"
@@ -53,6 +54,8 @@ const brushLayer = svg.append("g").attr("class", "brush").style("display", "none
 
 const xAxisGroup = svg.append("g").attr("class", "x-axis");
 const yAxisGroup = svg.append("g").attr("class", "y-axis");
+
+
 
 svg.append("defs").append("marker")
     .attr("id", "arrowhead")
@@ -307,7 +310,7 @@ async function parseApiResponse(response) {
         const message = parsed && typeof parsed === "object"
             ? (parsed.error || parsed.message || JSON.stringify(parsed))
             : (parsed || `HTTP ${response.status}`);
-        throw new Error(`HTTP ${response.status}: ${message}`);
+        throw new Error(message);
     }
 
     return parsed;
@@ -765,7 +768,11 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
             target_word: targetWordForPerturbation 
             
         }).then(data => {
-                storePerturbationResult(node.id, perturbType, data.new_text);
+                // Use the new text if available, otherwise fallback to display_text or original text
+                const textToShow = data.display_text || data.new_text;
+                
+                document.getElementById("new-text").innerHTML = textToShow;
+                storePerturbationResult(node.id, perturbType, textToShow);
 
                 const startX = xScale(node.x);
                 const startY = yScale(node.y);
