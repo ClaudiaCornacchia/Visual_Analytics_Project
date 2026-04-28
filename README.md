@@ -57,3 +57,12 @@ When using UMAP, always remember to:
 2. **Press `Ctrl + F5`** in your browser - this forces a hard refresh, as browsers may cache the old `base_map.csv` file
 
 > **Note:** The browser sometimes maintains the old `base_map.csv` in cache, requiring a full refresh to load the updated version.
+
+
+## Visualization explanation
+
+- **Heatmap**: When you select a tweet, the system calculates how much its semantic meaning would shift if you removed or swapped specific words with synonyms or antonyms.
+   - 🟥 Deep Red: High Semantic Shift. This word is a "semantic pillar" of the tweet; modifying it drastically alters the model's understanding.
+   - ⬜ White: Low/No impact on the overall meaning.   
+
+  Note: If a word lacks a direct synonym or antonym (e.g., proper nouns, stop words), the text remains unchanged. The semantic shift is exactly 0.0, and the heatmap cell will be white.
