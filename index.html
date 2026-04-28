@@ -173,10 +173,16 @@
                         <option value="dict_synonym">Synonym</option>
                         <option value="dict_antonym">Antonym</option>
                         <option value="dict_remove">Remove Word</option>
+                        <option value="custom_replace">Custom Replacement</option>
+
                         <option value="llm_paraphrase">Paraphrase</option>
                         <option value="llm_opposite">Opposite</option>
                         <option value="noise">Noise</option>
                     </select>
+
+                    <input type="text" id="custom-word-input" placeholder="Enter new word..." 
+       style="width: 100%; margin-bottom: 10px; padding: 6px; border: 1px solid #94a3b8; border-radius: 4px; display: none;">
+
                     <button id="btn-perturb" style="width: 100%; font-weight: bold;" disabled>PERTURB TWEET</button>
                     <button id="btn-clear" style="width: 100%; margin-top: 5px; font-size: 0.82rem; border: none; background: transparent; text-decoration: underline;" disabled>Clear Map</button>
                 </div>

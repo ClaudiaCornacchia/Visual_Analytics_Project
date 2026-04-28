@@ -31,6 +31,7 @@ const perturbationColors = {
     dict_synonym: "#2ca02c",
     dict_antonym: "#d62728",
     dict_remove: "#9333ea",
+    custom_replace: "#edef4b",
     llm_paraphrase: "#1f77b4",
     llm_opposite: "#ff7f0e",
     noise: "#7f7f7f"
@@ -739,7 +740,7 @@ function renderTokenAnalysis(text) {
         });
 }
 
-// --- NUOVO: Cancella la parola target ---
+// Cancella la parola target 
 const btnClearTarget = document.getElementById("btn-clear-target");
 if (btnClearTarget) {
     btnClearTarget.addEventListener("click", () => {
@@ -749,24 +750,31 @@ if (btnClearTarget) {
     });
 }
 
-// --- MODIFICA: Invio dati perturbazione ---
+// Mostra/Nascondi la casella di input per la parola custom quando si seleziona l'opzione "Custom Replace"
+document.getElementById("perturbation-select").addEventListener("change", (e) => {
+    const customInput = document.getElementById("custom-word-input");
+    customInput.style.display = (e.target.value === "custom_replace") ? "block" : "none";
+});
+
+// Invio dati perturbazione ---
 document.getElementById("btn-perturb").addEventListener("click", () => {
     if (selectedNodesData.length === 0) return;
 
     const perturbType = document.getElementById("perturbation-select").value;
+    const replacement = document.getElementById("custom-word-input").value;
     const arrowColor = perturbationColors[perturbType];
 
     document.getElementById("results-area").style.display = "block";
     document.getElementById("new-text").innerHTML = "<span>Loading perturbation from backend...</span>";
 
     selectedNodesData.forEach(node => {
-        // AGGIUNGIAMO 'target_word' NEL PAYLOAD INVIATO AL SERVER
         postJson("/api/perturb", { 
 
             text: node.text, 
-            type: perturbType,
-            target_word: targetWordForPerturbation 
-            
+            type: perturbType === "custom_replace" ? "custom" : perturbType,
+            target_word: targetWordForPerturbation,
+            replacement_word: replacement
+
         }).then(data => {
                 // Use the new text if available, otherwise fallback to display_text or original text
                 const textToShow = data.display_text || data.new_text;
