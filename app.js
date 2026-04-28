@@ -1108,3 +1108,57 @@ function updateTFIDFChart(data) {
         }
     });
 } 
+
+
+
+
+function applyFilters() {
+    // 1. Leggiamo i valori attuali dai controlli UI
+    const keyword = document.getElementById("filter-keyword").value.toLowerCase().trim();
+    const sentiment = document.getElementById("filter-sentiment").value;
+    const airline = document.getElementById("filter-airline").value;
+    const maxLength = parseInt(document.getElementById("filter-length").value);
+
+    // Aggiorniamo il numeretto dello slider
+    document.getElementById("word-count-display").innerText = maxLength === 40 ? "All" : maxLength;
+
+    // 2. Passiamo al setaccio tutti i nodi sulla mappa
+    nodeLayer.selectAll("circle.node")
+        .classed("dimmed", function(d) {
+            // Regola 1: Keyword
+            // Se c'è una parola chiave e il testo del tweet NON la contiene -> Dimmed
+            if (keyword && !d.text.toLowerCase().includes(keyword)) return true;
+
+            // Regola 2: Sentiment
+            // Se non è su "All" e il sentiment non combacia -> Dimmed
+            if (sentiment !== "all" && d.sentiment !== sentiment) return true;
+
+            // Regola 3: Airline
+            // Se non è su "All" e la compagnia non combacia -> Dimmed
+            if (airline !== "all" && d.airline !== airline) return true;
+
+            // Regola 4: Word Count
+            // Contiamo gli spazi per stimare velocemente le parole. 
+            // Se il limite non è 40 (massimo) e il tweet sfora -> Dimmed
+            const wordCount = d.text.split(/\s+/).length;
+            if (maxLength < 40 && wordCount > maxLength) return true;
+
+            // Se sopravvive a tutti i test, NON è dimmed (rimane visibile)
+            return false;
+        });
+}
+
+// 3. Attacchiamo i Listener per far scattare i filtri in tempo reale
+document.getElementById("filter-keyword").addEventListener("input", applyFilters);
+document.getElementById("filter-sentiment").addEventListener("change", applyFilters);
+document.getElementById("filter-airline").addEventListener("change", applyFilters);
+document.getElementById("filter-length").addEventListener("input", applyFilters);
+
+// 4. Tasto Reset
+document.getElementById("btn-reset-filters").addEventListener("click", () => {
+    document.getElementById("filter-keyword").value = "";
+    document.getElementById("filter-sentiment").value = "all";
+    document.getElementById("filter-airline").value = "all";
+    document.getElementById("filter-length").value = 40;
+    applyFilters(); // Ricalcola per togliere il dimming a tutti
+});
