@@ -113,6 +113,9 @@ let allNodesData = [];
 let selectedNodesData = [];
 let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
+
+const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
+const tweetBasedPerturbations = ["llm_paraphrase", "llm_opposite", "noise"];
 let brushModeActive = false;
 let perturbationResults = [];
 let activePerturbationKey = null;
@@ -389,7 +392,7 @@ function updateSelectionUI() {
     const hasSelection = selectedNodesData.length > 0;
     const singleSelection = selectedNodesData.length === 1;
 
-    if (btnPerturb) btnPerturb.disabled = !hasSelection;
+    // if (btnPerturb) btnPerturb.disabled = !hasSelection; // This is now handled by updatePerturbationButtonState()
     if (btnClear) btnClear.disabled = !hasSelection;
     setCenterButtonEnabled(hasSelection);
     if (btnClearSelection) btnClearSelection.disabled = !hasSelection;
@@ -404,6 +407,7 @@ function updateSelectionUI() {
         document.getElementById("tw-text-simple").innerText = "Select a point on the map to see token weights...";
         document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
+        updatePerturbationButtonState(); // Update button state when selection is cleared
         resetPerturbationResults();
         return;
     }
@@ -415,6 +419,7 @@ function updateSelectionUI() {
         document.getElementById("tw-text-simple").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         document.getElementById("tw-text").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         d3.select("#heatmap-container").html("<em>Heatmap available for a single selected tweet.</em>");
+        updatePerturbationButtonState(); // Update button state for multiple selection
         return;
     }
 
@@ -423,6 +428,7 @@ function updateSelectionUI() {
     document.getElementById("tw-sentiment").innerText = node.sentiment;
     renderTokenAnalysis(node.text);
     renderHeatmap(node.text);
+    // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
 }
 
 function clearSelection() {
@@ -445,6 +451,7 @@ function clearSelection() {
 
     targetWordForPerturbation = null;
     if (document.getElementById("target-word-info")) document.getElementById("target-word-info").style.display = "none";
+    updatePerturbationButtonState(); // Update button state after clearing selection
     updateTFIDFChart([]);
     updateSelectionUI();
 }
@@ -472,6 +479,7 @@ function selectNodes(nodes, options = {}) {
     if (selectedNodesData.length > 0) {
         setCenterButtonEnabled(true);
     }
+    updatePerturbationButtonState(); // Update button state after selection changes
 
     // Gestione TF-IDF
     const loadingText = document.getElementById("tfidf-loading");
@@ -686,6 +694,7 @@ d3.csv("base_map.csv", function (d) {
 
     setResetButtonVisibility(false);
     resetPerturbationResults();
+    updatePerturbationButtonState(); // Initial call to set button and input states
     updateSelectionUI();
 }).catch(function (error) {
     console.error("Error loading CSV:", error);
@@ -725,19 +734,54 @@ function renderTokenAnalysis(text) {
                         d3.select(this)
                           .style("outline", "2px solid #1d4ed8")
                           .style("box-shadow", "0 2px 5px rgba(0,0,0,0.2)")
-                          .style("transform", "scale(1.1)");
+                          .style("transform", "scale(1.05)");
 
                         // 3. Salva la parola e mostra il banner
                         targetWordForPerturbation = item.word.trim();
-                        document.getElementById("target-word-info").style.display = "block";
-                        document.getElementById("target-word-display").innerText = targetWordForPerturbation;
+                        updatePerturbationButtonState(); // Update button state and visibility
                     });
             });
         })
         .catch(err => {
             console.error("Token weight error:", err);
             container.html(`<em>Error loading token weights.</em><br><small>${err.message}</small>`);
+            updatePerturbationButtonState(); // Ensure button state is updated even on error
         });
+}
+
+function updatePerturbationButtonState() {
+    const hasSingleSelection = selectedNodesData.length === 1;
+    const currentPerturbationType = document.getElementById("perturbation-select").value;
+    const isWordBased = wordBasedPerturbations.includes(currentPerturbationType);
+    const customWordInput = document.getElementById("custom-word-input");
+    const targetWordInfo = document.getElementById("target-word-info");
+
+    let canPerturb = false;
+
+    // Manage visibility of custom word input
+    if (currentPerturbationType === "custom_replace" && hasSingleSelection && isWordBased) {
+        customWordInput.style.display = "block";
+    } else {
+        customWordInput.style.display = "none";
+    }
+
+    // Manage visibility of target word info
+    if (isWordBased && targetWordForPerturbation && hasSingleSelection) {
+        targetWordInfo.style.display = "block";
+        document.getElementById("target-word-display").innerText = targetWordForPerturbation;
+    } else {
+        targetWordInfo.style.display = "none";
+    }
+
+    // Determine if perturbation button should be enabled
+    if (hasSingleSelection) {
+       if (currentPerturbationType === "custom_replace") {
+            canPerturb = customWordInput.value.trim() !== "";
+        } else {
+            canPerturb = true;
+        }
+    }
+    btnPerturb.disabled = !canPerturb;
 }
 
 // Cancella la parola target 
@@ -746,36 +790,57 @@ if (btnClearTarget) {
     btnClearTarget.addEventListener("click", () => {
         targetWordForPerturbation = null;
         document.getElementById("target-word-info").style.display = "none";
-        d3.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)");
+        d3.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)"); // Deseleziona tutti i token
+        updatePerturbationButtonState(); // Update button state and visibility
     });
 }
 
-// Mostra/Nascondi la casella di input per la parola custom quando si seleziona l'opzione "Custom Replace"
+// Gestisce la visibilità della casella di input custom e lo stato del pulsante
 document.getElementById("perturbation-select").addEventListener("change", (e) => {
-    const customInput = document.getElementById("custom-word-input");
-    customInput.style.display = (e.target.value === "custom_replace") ? "block" : "none";
+    updatePerturbationButtonState();
+});
+
+// Aggiunge un listener per l'input della parola custom per aggiornare lo stato del pulsante
+document.getElementById("custom-word-input").addEventListener("input", () => {
+    updatePerturbationButtonState();
 });
 
 // Invio dati perturbazione ---
 document.getElementById("btn-perturb").addEventListener("click", () => {
-    if (selectedNodesData.length === 0) return;
+    if (selectedNodesData.length !== 1) { // Enforce single selection for perturbation
+        console.warn("Perturbation requires a single tweet selection.");
+        return;
+    }
 
+    const node = selectedNodesData[0]; // Only one node for perturbation
     const perturbType = document.getElementById("perturbation-select").value;
-    const replacement = document.getElementById("custom-word-input").value;
+    const replacement = document.getElementById("custom-word-input").value.trim();
     const arrowColor = perturbationColors[perturbType];
 
     document.getElementById("results-area").style.display = "block";
     document.getElementById("new-text").innerHTML = "<span>Loading perturbation from backend...</span>";
 
-    selectedNodesData.forEach(node => {
-        postJson("/api/perturb", { 
-
+    const payload = {
             text: node.text, 
             type: perturbType === "custom_replace" ? "custom" : perturbType,
-            target_word: targetWordForPerturbation,
-            replacement_word: replacement
+    };
 
-        }).then(data => {
+    if (wordBasedPerturbations.includes(perturbType)) {
+         if (targetWordForPerturbation) {
+            payload.target_word = targetWordForPerturbation;
+        }
+        if (perturbType === "custom_replace") {
+            if (!replacement) {
+                console.error("No replacement word provided for custom replacement.");
+                document.getElementById("new-text").innerHTML = "<span>Error: No replacement word provided.</span>";
+                return;
+            }
+            payload.replacement_word = replacement;
+        }
+    }
+
+    postJson("/api/perturb", payload)
+        .then(data => {
                 // Use the new text if available, otherwise fallback to display_text or original text
                 const textToShow = data.display_text || data.new_text;
                 
@@ -821,7 +886,6 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
                 console.error("Fetch Error:", error);
                 document.getElementById("new-text").innerHTML = `<span>${error.message}</span>`;
             });
-    });
 });
 
 document.getElementById("btn-clear").addEventListener("click", () => {

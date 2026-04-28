@@ -133,12 +133,7 @@
 
         <div class="card">
             <div class="card-title">
-                <span>DETAILS & WEIGHTS</span>
-                <div class="legend-box">
-                    WORD WEIGHT:<br>
-                    <div class="gradient-bar"></div><br>
-                    Red=High, White=Low
-                </div>
+                <span>SELECTION DETAILS</span>
             </div>
             <div style="margin-bottom: 10px; font-size: 0.92rem;">
                 <strong>TWEET ID:</strong> <span id="tw-id">-</span> &nbsp;&nbsp;|&nbsp;&nbsp;
@@ -147,10 +142,6 @@
             <div style="margin-bottom: 12px;">
                 <div style="font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Original Text</div>
                 <div id="tw-text-simple" style="font-size: 15px; line-height: 1.7; background: #ffffff; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px; color: #334155;">Select a point on the map to see token weights...</div>
-            </div>
-            <div style="margin-bottom: 12px;">
-                <div style="font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Token Analysis</div>
-                <div id="tw-text" style="font-size: 15px; line-height: 1.7; background: #e2e8f0; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px;">Select a point on the map to see token weights...</div>
             </div>
             <div class="selection-summary">
                 <div class="summary-line"><strong>Selection:</strong> <span id="selection-count">0 tweets selected</span></div>
@@ -161,6 +152,18 @@
         </div>
 
         <div class="card">
+            <div class="card-title">
+                <span>TOKEN ANALYSIS</span>
+                <div class="legend-box">
+                    WORD WEIGHT:<br>
+                    <div class="gradient-bar"></div><br>
+                    Red=High, White=Low
+                </div>
+            </div>
+            <div id="tw-text" style="font-size: 15px; line-height: 1.7; background: #e2e8f0; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px;">Select a point on the map to see token weights...</div>
+        </div>
+
+        <div class="card">
             <div class="card-title">PERTURBATION CONTROLLER</div>
             <div class="flex-row">
                 <div style="flex: 0.8;">
@@ -168,16 +171,19 @@
                         Target: <strong id="target-word-display">-</strong>
                         <span id="btn-clear-target" style="float: right; cursor: pointer; text-decoration: underline; font-size: 0.75rem;">Clear</span>
                     </div>
-                    <div style="font-size: 0.82rem; margin-bottom: 5px; color: #475569;">PERTURBATION TYPE</div>
+                    <div style="font-size: 0.82rem; margin-bottom: 5px; color: #475569;">PERTURBATION TYPE</div> 
                     <select id="perturbation-select" style="width: 100%; margin-bottom: 10px;">
-                        <option value="dict_synonym">Synonym</option>
-                        <option value="dict_antonym">Antonym</option>
-                        <option value="dict_remove">Remove Word</option>
-                        <option value="custom_replace">Custom Replacement</option>
-
-                        <option value="llm_paraphrase">Paraphrase</option>
-                        <option value="llm_opposite">Opposite</option>
-                        <option value="noise">Noise</option>
+                        <optgroup label="Word-based Perturbations">
+                            <option value="dict_synonym">Synonym</option>
+                            <option value="dict_antonym">Antonym</option>
+                            <option value="dict_remove">Remove Word</option>
+                            <option value="custom_replace">Custom Replacement</option>
+                        </optgroup>
+                        <optgroup label="Tweet-based Perturbations">
+                            <option value="llm_paraphrase">Paraphrase</option>
+                            <option value="llm_opposite">Opposite</option>
+                            <option value="noise">Noise</option>
+                        </optgroup>
                     </select>
 
                     <input type="text" id="custom-word-input" placeholder="Enter new word..." 
