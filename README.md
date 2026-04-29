@@ -73,6 +73,7 @@ When using UMAP, always remember to:
 1. **Synonym Replacement**: Replaces the user selected word with a synonym, if no synonym is available the text remains unchanged and if the user doesn't select any word the first available word with a synonym will be used.
 2. **Antonym Replacement**: Replaces the user selected word with an antonym if no antonym is available the text remains unchanged and if the user doesn't select any word the first available word with an antonym will be used.
 3. **Remove Word**: Removes the user selected word from the text, if the user doesn't select any word the first available word will be removed.
-4. **LLM Paraphrase**: The entire tweet is paraphrased by the LLM, no word selection is needed.
-5. **LLM Opposite**: The entire tweet is transformed to its opposite meaning by the LLM, no word selection is needed.
-6. **Noise**: Adds a random word to the text
+4. **Custom Replacement**: Replaces the user selected word with a custom word entered by the user.
+5. **LLM Paraphrase**: The entire tweet is paraphrased by the LLM, no word selection is needed.
+6. **LLM Opposite**: The entire tweet is transformed to its opposite meaning by the LLM, no word selection is needed.
+7. **Noise**: Adds a random word to the text
