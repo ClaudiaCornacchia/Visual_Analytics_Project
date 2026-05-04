@@ -33,3 +33,4 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 8. La sezione perturbazione potrebbe essere più inuitiva 
 9. Se il filtro rimuove il tweet che stiamo visualizzando, allora togliamolo dalla viusalizzazione
 10. Controllare che tutte le visualizzazioni siano coordinate
+11. Cercare un dizionario con più sinonimi/contrari per aumentare la copertura della perturbazione

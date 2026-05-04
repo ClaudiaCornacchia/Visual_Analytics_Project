@@ -427,7 +427,7 @@ function updateSelectionUI() {
     document.getElementById("tw-id").innerText = node.id;
     document.getElementById("tw-sentiment").innerText = node.sentiment;
     renderTokenAnalysis(node.text);
-    renderHeatmap(node.text);
+    //renderHeatmap(node.text);
     // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
 }
 
@@ -1165,3 +1165,96 @@ document.getElementById("btn-reset-filters").addEventListener("click", () => {
     document.getElementById("filter-length").value = 40;
     applyFilters(); // Ricalcola per togliere il dimming a tutti
 });
+
+
+// BERTopic
+let allTopicsData = [];
+
+// 1. Scarica i dati all'avvio// Usa la tua variabile globale per puntare al server corretto
+fetch(API_BASE_URL + '/api/topics', {
+    method: 'GET',
+    headers: {
+        // Mantiene il bypass per la schermata di sicurezza di Ngrok
+        'ngrok-skip-browser-warning': 'true' 
+    }
+})
+.then(res => {
+    if (!res.ok) {
+        throw new Error(`Errore Server HTTP: ${res.status}`);
+    }
+    return res.json();
+})
+.then(data => {
+    allTopicsData = data;
+    
+    // Popola la lista cliccabile
+    const selector = d3.select("#topic-selector");
+    data.forEach(topic => {
+        // Estraiamo le prime 3 parole per creare un titolo comprensibile
+        // Es: ["flight", "delayed", "hours"] diventa "flight, delayed, hours"
+        const topWords = topic.words.slice(0, 3).map(w => w.word).join(", ");
+        
+        selector.append("option")
+            .attr("value", topic.id)
+            // Creiamo una stringa bellissima e chiara per l'utente
+            .text(`${topWords} (${topic.count} tweets)`);
+    });
+
+    // Ascolta il click
+    selector.on("change", function() {
+        const selectedId = parseInt(this.value);
+        const topicData = allTopicsData.find(t => t.id === selectedId);
+        renderTopicBarchart(topicData.words);
+    });
+})
+.catch(err => {
+    console.error("❌ Errore durante il caricamento dei Topic:", err);
+});
+
+// 2. Disegna il grafico a barre per le parole
+function renderTopicBarchart(words) {
+    const container = d3.select("#topic-barchart");
+    container.html(""); // Pulisci
+    
+    // Dimensioni
+    const width = document.getElementById("topic-barchart").clientWidth;
+    const height = 120;
+    const margin = {top: 10, right: 10, bottom: 20, left: 60};
+
+    const svg = container.append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    // Scale
+    const x = d3.scaleLinear()
+        .domain([0, d3.max(words, d => d.weight)])
+        .range([margin.left, width - margin.right]);
+
+    const y = d3.scaleBand()
+        .domain(words.map(d => d.word))
+        .range([margin.top, height - margin.bottom])
+        .padding(0.2);
+
+    // Asse Y (Le parole)
+    svg.append("g")
+        .attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).tickSize(0))
+        .selectAll("text")
+        .style("font-size", "11px")
+        .style("fill", "#334155");
+
+    // Rimuovi la linea dell'asse per un look più pulito
+    svg.selectAll(".domain").remove();
+
+    // Barre orizzontali
+    svg.selectAll("rect")
+        .data(words)
+        .enter()
+        .append("rect")
+        .attr("x", margin.left)
+        .attr("y", d => y(d.word))
+        .attr("width", d => x(d.weight) - margin.left)
+        .attr("height", y.bandwidth())
+        .attr("fill", "#3b82f6") // Blu accattivante
+        .attr("border-radius", "4px");
+}
