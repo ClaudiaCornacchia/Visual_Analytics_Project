@@ -701,51 +701,69 @@ d3.csv("base_map.csv", function (d) {
     alert("Make sure base_map.csv is loaded and you are running a local server.");
 });
 
+// Token Analysis
 function renderTokenAnalysis(text) {
-    // Mostra il testo originale semplice
+    // Opzionale: se hai ancora il div per il testo semplice, lascialo, altrimenti puoi rimuovere questa riga
     d3.select("#tw-text-simple").text(text);
     
     const container = d3.select("#tw-text");
-    container.html("<em>Calculating token weights...</em>");
+    container.html("<em style='color: #64748b;'>Calculating token ablation weights...</em>");
 
     postJson("/api/token_weights", { text })
         .then(data => {
             if (!Array.isArray(data) || data.length === 0) {
-                container.html("<em>No token data available.</em>");
+                container.html("<em style='color: #ef4444;'>No token data available for this text.</em>");
                 return;
             }
 
-            container.html("");
+            container.html(""); // Svuota il contenitore
+            
+            // 1. Calcola il massimo per la scala colori
             const maxWeight = d3.max(data, d => d.weight) || 0.01;
             const colorScale = d3.scaleSequential(d3.interpolateReds).domain([0, maxWeight]);
 
+            // 2. Disegna gli span (le parole)
             data.forEach(item => {
                 container.append("span")
                     .attr("class", "token")
+                    // Tooltip nativo al passaggio del mouse!
+                    .attr("title", `Impact Score: ${item.weight.toFixed(3)}`) 
                     .style("background-color", colorScale(item.weight))
-                    .style("color", item.weight > maxWeight * 0.5 ? "white" : "black")
-                    .style("cursor", "pointer") // Puntatore a manina
-                    .text(`${item.word} `)
-                    .on("click", function() {
-                        // 1. Spegni eventuali altre parole selezionate
-                        container.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)");
+                    .style("color", item.weight > (maxWeight * 0.5) ? "#ffffff" : "#0f172a")
+                    .text(`${item.word} `) // Nota lo spazio finale per distanziare le parole
+                    .on("click", function(event) {
+                        // A. Spegni eventuali altre parole selezionate ripristinando lo stile di default
+                        container.selectAll(".token")
+                            .style("border", "1.5px solid transparent")
+                            .style("box-shadow", "none");
                         
-                        // 2. Evidenzia questa parola (bordo blu)
+                        // B. Evidenzia QUESTA parola (Bordo nero netto, stile Heatmap)
                         d3.select(this)
-                          .style("outline", "2px solid #1d4ed8")
-                          .style("box-shadow", "0 2px 5px rgba(0,0,0,0.2)")
-                          .style("transform", "scale(1.05)");
+                            .style("border", "1.5px solid #000") // Più elegante dell'outline
+                            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.2)");
 
-                        // 3. Salva la parola e mostra il banner
+                        // C. Salva la parola come Target globale
                         targetWordForPerturbation = item.word.trim();
-                        updatePerturbationButtonState(); // Update button state and visibility
+                        
+                        const displayEl = document.getElementById("target-word-display");
+                        if (displayEl) displayEl.innerText = targetWordForPerturbation;
+                        
+                        const infoEl = document.getElementById("target-word-info");
+                        if (infoEl) infoEl.style.display = "block";
+
+                        // D. Aggiorna i bottoni
+                        if (typeof updatePerturbationButtonState === "function") {
+                            updatePerturbationButtonState();
+                        }
                     });
             });
         })
         .catch(err => {
             console.error("Token weight error:", err);
-            container.html(`<em>Error loading token weights.</em><br><small>${err.message}</small>`);
-            updatePerturbationButtonState(); // Ensure button state is updated even on error
+            container.html(`<em style='color: #ef4444;'>Error loading token weights.</em><br><small>${err.message}</small>`);
+            if (typeof updatePerturbationButtonState === "function") {
+                updatePerturbationButtonState(); 
+            }
         });
 }
 
@@ -905,86 +923,7 @@ document.getElementById("btn-clear").addEventListener("click", () => {
     resetPerturbationResults();
 });
 
-function renderHeatmap(text) {
-    const container = d3.select("#heatmap-container");
-    container.html("<em>Generating heatmap matrix...</em>");
 
-    postJson("/api/heatmap", { text })
-        .then(heatmapData => {
-            if (heatmapData.error) {
-                container.html(`<div style="color: red; padding: 10px;"><strong>Backend Error:</strong> ${heatmapData.error}</div>`);
-                console.error("Heatmap backend error:", heatmapData.error);
-                return;
-            }
-
-            container.html("");
-
-            const tokens = [...new Set(heatmapData.map(d => d.token))];
-            const perturbations = [...new Set(heatmapData.map(d => d.perturbation))];
-            const hmWidth = document.getElementById("details-panel").clientWidth - 40;
-            const hmHeight = 150;
-            const margin = { top: 20, right: 10, bottom: 40, left: 60 };
-
-            const hmSvg = container.append("svg")
-                .attr("width", hmWidth)
-                .attr("height", hmHeight);
-
-            const xBand = d3.scaleBand()
-                .domain(tokens)
-                .range([margin.left, hmWidth - margin.right])
-                .padding(0.05);
-
-            const yBand = d3.scaleBand()
-                .domain(perturbations)
-                .range([margin.top, hmHeight - margin.bottom])
-                .padding(0.05);
-
-            const maxImportance = d3.max(heatmapData, d => d.importance) || 0.01;
-            const colorHm = d3.scaleSequential(d3.interpolateReds).domain([0, maxImportance]);
-
-            hmSvg.append("g")
-                .attr("transform", `translate(0,${hmHeight - margin.bottom})`)
-                .call(d3.axisBottom(xBand))
-                .selectAll("text")
-                .attr("transform", "rotate(-20)")
-                .style("text-anchor", "end")
-                .style("font-size", "11px");
-
-            hmSvg.append("g")
-                .attr("transform", `translate(${margin.left},0)`)
-                .call(d3.axisLeft(yBand))
-                .style("font-size", "11px");
-
-            hmSvg.selectAll("rect")
-                .data(heatmapData)
-                .enter()
-                .append("rect")
-                .attr("x", d => xBand(d.token))
-                .attr("y", d => yBand(d.perturbation))
-                .attr("width", xBand.bandwidth())
-                .attr("height", yBand.bandwidth())
-                .style("fill", d => colorHm(d.importance))
-                .style("stroke", "#ccc")
-                .style("stroke-width", 0.5)
-                .append("title")
-                .text(d => `Token: ${d.token}\nPerturbation: ${d.perturbation}\nImportance: ${d.importance.toFixed(2)}`);
-
-            hmSvg.selectAll(".tick text")
-                .style("cursor", "pointer")
-                .style("font-weight", "bold")
-                .on("mouseover", function () { d3.select(this).style("fill", "#ef4444"); })
-                .on("mouseout", function () { d3.select(this).style("fill", "#475569"); })
-                .on("click", function (event, selectedToken) {
-                    nodeLayer.selectAll("circle.node").classed("dimmed", false);
-                    nodeLayer.selectAll("circle.node")
-                        .classed("dimmed", d => !d.text.toLowerCase().includes(selectedToken.toLowerCase()));
-                });
-        })
-        .catch(err => {
-            console.error("Heatmap error:", err);
-            container.html(`<em>Error loading heatmap.</em><br><small>${err.message}</small>`);
-        });
-}
 
 if (btnResetZoom) {
     btnResetZoom.addEventListener("click", () => {

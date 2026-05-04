@@ -101,6 +101,22 @@
             stroke-width: 1.5px;
         }
 
+        .token {
+            display: inline-block;
+            padding: 1px 4px;      /* Poco padding per avvicinare le lettere */
+            margin: 0px 1px;       /* Quasi zero margine per fluidità di lettura */
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            border: 1.5px solid transparent; 
+        }
+
+        .token:hover {
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #94a3b8;
+        }
+
 
     </style>
 </head>
@@ -151,17 +167,31 @@
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-title">
-                <span>TOKEN ANALYSIS</span>
-                <div class="legend-box">
-                    WORD WEIGHT:<br>
-                    <div class="gradient-bar"></div><br>
-                    Red=High, White=Low
+        <div class="card" id="token-analysis-card">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <span>TOKEN ANALYSIS HEATMAP </span>
+                    <div style="font-size: 0.75rem; color: #64748b; font-weight: normal; margin-top: 2px;">
+                        Click a word to select it as a perturbation target
+                    </div>
                 </div>
-            </div>
-            <div id="tw-text" style="font-size: 15px; line-height: 1.7; background: #e2e8f0; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px;">Select a point on the map to see token weights...</div>
+                
+                <!-- Legenda Visiva con Gradiente (Stile Heatmap) -->
+                <div class="legend-box" style="background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; min-width: 140px;">
+                    <div style="font-size: 0.7rem; font-weight: bold; text-align: center; margin-bottom: 5px; color: #334155;">Ablation Impact</div>
+                    <div style="height: 8px; background: linear-gradient(to right, #fff5f0, #fc9272, #cb181d, #67000d); border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 4px;"></div>
+                    <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 0.65rem; font-weight: bold;">
+                        <span>Low</span>
+                        <span>High</span>
+                    </div>
+                </div>
         </div>
+    
+    <!-- Il contenitore con lo stile pulito che abbiamo definito -->
+    <div id="tw-text" style="line-height: 2; font-size: 1.05rem; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 6px; background: #ffffff; min-height: 80px; color: #0f172a; margin-top: 15px;">
+        <em style="color: #94a3b8; font-size: 0.9rem;">Select a single tweet from the map to view token weights...</em>
+    </div>
+</div>
 
         <div class="card">
             <div class="card-title">PERTURBATION CONTROLLER</div>
@@ -200,20 +230,6 @@
                     
 
                 </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">
-                <span>DIAGNOSTIC TOKEN HEATMAP</span>
-                <div class="legend-box">
-                    SEMANTIC SHIFT:<br>
-                    <div class="gradient-bar"></div><br>
-                    Red=High, White=Low
-                </div>
-            </div>
-            <div id="heatmap-container" style="min-height: 150px; text-align: center; color: #64748b; font-size: 0.96rem; margin-top: 20px;">
-                <em>Select a single tweet to view heatmap.</em>
             </div>
         </div>
 

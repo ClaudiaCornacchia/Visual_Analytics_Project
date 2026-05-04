@@ -30,5 +30,6 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 4. Nella heatmap capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
 5. Far visualizzare un contatore che mostra quanti tweet ci sono, quanti per ogni compagnia ecc..
 6. Nella perturbazione del rumore potremmo aggiungere molte più parole casuali (non solo 1) per vedere se c'è un effetto cumulativo
-7. Spostare la sezione Token Analysis in Perturbation controller così è piu intuitivo che le parole si selzionano da lì
 8. La sezione perturbazione potrebbe essere più inuitiva 
+9. Se il filtro rimuove il tweet che stiamo visualizzando, allora togliamolo dalla viusalizzazione
+10. Controllare che tutte le visualizzazioni siano coordinate
