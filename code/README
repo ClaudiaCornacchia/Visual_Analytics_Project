@@ -34,4 +34,5 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 9. Se il filtro rimuove il tweet che stiamo visualizzando, allora togliamolo dalla viusalizzazione
 10. Controllare che tutte le visualizzazioni siano coordinate
 11. Cercare un dizionario con più sinonimi/contrari per aumentare la copertura della perturbazione
-12. Sistemare visualizzazione di BERTopic: quando toppo su un topic devono essere evidenziati i tweet che ne fanno parte, e al contrario quando seleziono un cluster (o tweet?) devono essere evidenziati i topic a cui appartiene. Capire se ha senso tenere le keyword per i topic, forse no
+12.  Capire se ha senso tenere le keyword per i topic, forse no. E Dare dei nomi più intuitivi ai topic (es. "Topic 1" -> "Customer Service Issues")
+13. Aggiungere lo switch che suggeriva il prof: bottone switch che cambia la modalità di selezione da "point-based" a "cluster-based"

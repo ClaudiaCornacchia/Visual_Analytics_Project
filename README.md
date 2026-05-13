@@ -61,7 +61,9 @@ When using UMAP, always remember to:
 
 ## Visualization explanation
 
-- **Heatmap**: When you select a tweet, the system calculates how much its semantic meaning would shift if you removed or swapped specific words with synonyms or antonyms.
+- **BERTopic**: When you cliuck on a topic all the tweets that belong to that topic will be highlighted in scatterplot. When you select a cluster in the scatterplot it is computed the dominant topic of that cluster and the corresponding topic in the BERTopic visualization will be highlighted.
+
+- **Heatmap**: When you select a tweet, the system calculates how much its semantic meaning would shift if you removed specific words.
    - 🟥 Deep Red: High Semantic Shift. This word is a "semantic pillar" of the tweet; modifying it drastically alters the model's understanding.
    - ⬜ White: Low/No impact on the overall meaning.   
 
