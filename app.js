@@ -720,7 +720,27 @@ function renderTokenAnalysis(text) {
             
             // 1. Calcola il massimo per la scala colori
             const maxWeight = d3.max(data, d => d.weight) || 0.01;
-            const colorScale = d3.scaleSequential(d3.interpolateReds).domain([0, maxWeight]);
+            // DEBUG: print the maximum weight and all token weights
+            console.log("Max token weight:", maxWeight);
+            console.table(
+                data.map(d => ({
+                    word: d.word,
+                    weight: d.weight
+                }))
+            );
+            const colorScale = d3.scaleSequential()
+                .domain([0, maxWeight])
+                .interpolator(d3.interpolateRgbBasis([
+                    "#0b1026", // very dark blue
+                    "#1e3a8a", // deep blue
+                    "#2563eb", // blue
+                    "#38bdf8", // light blue
+                    "#67e8f9", // cyan
+                    "#84cc16", // green
+                    "#fde047", // yellow
+                    "#facc15", // golden yellow
+                    "#fef9c3"  // pale yellow
+                ]));
 
             // 2. Disegna gli span (le parole)
             data.forEach(item => {
@@ -729,7 +749,7 @@ function renderTokenAnalysis(text) {
                     // Tooltip nativo al passaggio del mouse!
                     .attr("title", `Impact Score: ${item.weight.toFixed(3)}`) 
                     .style("background-color", colorScale(item.weight))
-                    .style("color", item.weight > (maxWeight * 0.5) ? "#ffffff" : "#0f172a")
+                    .style("color", item.weight > (maxWeight * 0.5) ?  "#0f172a" : "#ffffff" )
                     .text(`${item.word} `) // Nota lo spazio finale per distanziare le parole
                     .on("click", function(event) {
                         // A. Spegni eventuali altre parole selezionate ripristinando lo stile di default
