@@ -580,6 +580,7 @@ const brush = d3.brush()
         });
 
         selectNodes(brushedNodes);
+        updateTopicFromMapSelection(brushedNodes);
         if (brushedNodes.length > 0) {
             setCenterButtonEnabled(true);
         }
@@ -621,7 +622,8 @@ d3.csv("base_map.csv", function (d) {
         sentiment: d.sentiment,
         airline: d.airline,
         x: +d.x,
-        y: +d.y
+        y: +d.y,
+        topic_id: parseInt(d.topic_id, 10)
     };
 }).then(function (data) {
     allNodesData = data;
@@ -1225,6 +1227,17 @@ fetch(API_BASE_URL + '/api/topics', {
         const selectedId = parseInt(this.value);
         const topicData = allTopicsData.find(t => t.id === selectedId);
         renderTopicBarchart(topicData.words);
+
+        d3.selectAll("circle.node")
+        .transition()
+        .duration(400) // Animazione fluida
+        .style("opacity", d => {
+            // Se il topic coincide, massima opacità. Altrimenti quasi trasparenti.
+            return d.topic_id === selectedId ? 1.0 : 0.05; 
+        })
+        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
+        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+
     });
 })
 .catch(err => {
@@ -1277,4 +1290,41 @@ function renderTopicBarchart(words) {
         .attr("height", y.bandwidth())
         .attr("fill", "#3b82f6") // Blu accattivante
         .attr("border-radius", "4px");
+}
+
+
+function updateTopicFromMapSelection(brushedNodes) {
+    if (!brushedNodes || brushedNodes.length === 0) return;
+
+    // 1. Contiamo le frequenze dei topic
+    const topicCounts = {};
+    brushedNodes.forEach(d => {
+        const tid = d.topic_id;
+        // Ignoriamo i tweet senza topic o gli Outlier (-1)
+        if (tid !== undefined && tid !== -1) { 
+            topicCounts[tid] = (topicCounts[tid] || 0) + 1;
+        }
+    });
+
+    // 2. Troviamo il topic più frequente
+    let dominantTopicId = null;
+    let maxCount = 0;
+    
+    for (const [tid, count] of Object.entries(topicCounts)) {
+        if (count > maxCount) {
+            maxCount = count;
+            dominantTopicId = parseInt(tid);
+        }
+    }
+
+    // 3. Se abbiamo trovato un topic, aggiorniamo l'interfaccia!
+    if (dominantTopicId !== null) {
+        const selector = document.getElementById("topic-selector");
+        
+        // Seleziona la voce giusta nel menu a tendina
+        selector.value = String(dominantTopicId);
+        
+        // Simula il "click" dell'utente per far aggiornare automaticamente il BarChart!
+        selector.dispatchEvent(new Event('change')); 
+    }
 }
