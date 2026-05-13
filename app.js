@@ -112,6 +112,7 @@ let yScale;
 let allNodesData = [];
 let selectedNodesData = [];
 let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
+let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
@@ -216,6 +217,9 @@ function getNodeFillColor(node) {
     if (currentColorEncoding === "airline") {
         return airlineColorScale(node.airline);
     }
+    if (currentColorEncoding === "topic") {
+        return node.topic_id === -1 ? "#cbd5e1" : topicColorScale(node.topic_id);
+    }
 
     return sentimentColors[node.sentiment] || "#64748b";
 }
@@ -229,6 +233,8 @@ function updateNodeColors() {
 
         if (currentColorEncoding === "airline") {
             circle.style("fill", airlineColorScale(d.airline));
+        } else if (currentColorEncoding === "topic") {
+            circle.style("fill", d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id));
         } else {
             circle.style("fill", null);
         }
@@ -324,13 +330,15 @@ function renderSelectionLegend(nodes) {
     const container = document.getElementById("selection-legend");
 
     if (!nodes.length) {
-        container.innerHTML = '<div class="selection-empty">Select one or more points to see selected sentiment and airline legend.</div>';
+        container.innerHTML = '<div class="selection-empty">Select one or more points to see selected sentiment, airline and topic legend.</div>';
         return;
     }
 
     const sentimentCounts = d3.rollups(nodes, values => values.length, d => d.sentiment)
         .sort((a, b) => d3.ascending(a[0], b[0]));
     const airlineCounts = d3.rollups(nodes, values => values.length, d => d.airline)
+        .sort((a, b) => d3.ascending(a[0], b[0]));
+    const topicCounts = d3.rollups(nodes, values => values.length, d => d.topic_id)
         .sort((a, b) => d3.ascending(a[0], b[0]));
 
     const renderItems = (items, colorFn) => items.map(([label, count]) => `
@@ -349,6 +357,15 @@ function renderSelectionLegend(nodes) {
             <div class="legend-title">Selected Airlines</div>
             <div class="legend-items">${renderItems(airlineCounts, label => airlineColorScale(label))}</div>
         </div>
+        <div class="legend-group">
+            <div class="legend-title">Selected Topics</div>
+            <div class="legend-items">${topicCounts.map(([label, count]) => `
+                <div class="legend-item">
+                    <span class="legend-swatch" style="background:${label === -1 ? "#cbd5e1" : topicColorScale(label)};"></span>
+                    <span>${label === -1 ? "Outlier" : "Topic " + label} (${count})</span>
+                </div>
+            `).join("")}</div>
+        </div>
     `;
 }
 
@@ -356,25 +373,35 @@ function renderMapLegends(nodes = []) {
     const legendLabel = document.getElementById("map-legend-label");
     const legendItems = document.getElementById("map-legend-items");
 
-    const legendData = currentColorEncoding === "airline"
-        ? (
-            nodes.length
-                ? d3.rollups(nodes, values => values.length, d => d.airline)
-                : airlineColorScale.domain().map(label => [label, null])
-        )
-        : (
-            nodes.length
-                ? d3.rollups(nodes, values => values.length, d => d.sentiment)
-                : Object.keys(sentimentColors).map(label => [label, null])
-        );
+    let legendData;
+    if (currentColorEncoding === "airline") {
+        legendLabel.innerText = "Airline";
+        legendData = nodes.length
+            ? d3.rollups(nodes, values => values.length, d => d.airline)
+            : airlineColorScale.domain().map(label => [label, null]);
+    } else if (currentColorEncoding === "topic") {
+        legendLabel.innerText = "Topic";
+        legendData = nodes.length
+            ? d3.rollups(nodes, values => values.length, d => d.topic_id).sort((a, b) => a[0] - b[0])
+            : [-1, ...topicColorScale.domain()].map(label => [label, null]);
+    } else {
+        legendLabel.innerText = "Sentiment";
+        legendData = nodes.length
+            ? d3.rollups(nodes, values => values.length, d => d.sentiment)
+            : Object.keys(sentimentColors).map(label => [label, null]);
+    }
 
-    legendLabel.innerText = currentColorEncoding === "airline" ? "Airline" : "Sentiment";
-    legendItems.innerHTML = legendData.map(([label, count]) => `
+    legendItems.innerHTML = legendData.map(([label, count]) => {
+        let color = currentColorEncoding === "airline" ? airlineColorScale(label) : (currentColorEncoding === "topic" ? (label === -1 ? "#cbd5e1" : topicColorScale(label)) : (sentimentColors[label] || "#64748b"));
+        let displayLabel = currentColorEncoding === "topic" ? (label === -1 ? "Outlier" : `Topic ${label}`) : label;
+        
+        return `
         <div class="map-legend-item">
-            <span class="map-legend-swatch" style="background:${currentColorEncoding === "airline" ? airlineColorScale(label) : (sentimentColors[label] || "#64748b")};"></span>
-            <span>${label}${count !== null ? ` (${count})` : ""}</span>
+            <span class="map-legend-swatch" style="background:${color};"></span>
+            <span>${displayLabel}${count !== null ? ` (${count})` : ""}</span>
         </div>
-    `).join("");
+        `;
+    }).join("");
 }
 
 function updateSelectionUI() {
@@ -445,7 +472,11 @@ function clearSelection() {
         .duration(800)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .style("fill", d => currentColorEncoding === "airline" ? airlineColorScale(d.airline) : null)
+        .style("fill", d => {
+            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
+            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
+            return null;
+        })
         .style("stroke", null)
         .style("stroke-width", null);
 
@@ -652,6 +683,7 @@ d3.csv("base_map.csv", function (d) {
 
     const bigDataset = data.length > 2000;
     airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.airline))]);
+    topicColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.topic_id))].filter(t => t !== -1).sort((a, b) => a - b));
     renderMapLegends();
 
     nodeLayer.selectAll("circle.node")
@@ -937,7 +969,11 @@ document.getElementById("btn-clear").addEventListener("click", () => {
         .duration(800)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .style("fill", d => currentColorEncoding === "airline" ? airlineColorScale(d.airline) : null)
+        .style("fill", d => {
+            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
+            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
+            return null;
+        })
         .style("stroke", null)
         .style("stroke-width", null);
 
