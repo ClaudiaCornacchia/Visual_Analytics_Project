@@ -34,5 +34,10 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 9. Se il filtro rimuove il tweet che stiamo visualizzando, allora togliamolo dalla viusalizzazione
 10. Controllare che tutte le visualizzazioni siano coordinate
 11. Cercare un dizionario con più sinonimi/contrari per aumentare la copertura della perturbazione
-12.  Capire se ha senso tenere le keyword per i topic, forse no. E Dare dei nomi più intuitivi ai topic (es. "Topic 1" -> "Customer Service Issues")
-13. Aggiungere lo switch che suggeriva il prof: bottone switch che cambia la modalità di selezione da "point-based" a "cluster-based"
+12. Capire se ha senso tenere le keyword per i topic, forse no. E Dare dei nomi più intuitivi ai topic (es. "Topic 1" -> "Customer Service Issues")
+13. Aggiungere lo switch che suggeriva il prof: bottone switch che cambia la modalità di selezione da "point-based" a "cluster-based" 
+   Dettagli del prof: 
+   un bottone switch che cambia la modalità di selezione da "point-based" a "cluster-based". Se sono in "point-based" il click su un punto seleziona quel punto, 
+   se clicco, lo tolgo. Se sono in "cluster-based" il click su un punto va a selezionare tutti i punti dello stesso cluster. Stessa cosa per il brush: 
+   se il brush seleziona alcuni punti, in automatico il sistema seleziona tutti i punti degli stessi cluster dei punti selezionati tramite brush. 
+   Per semplificare ulteriormente, si potrebbe mettere un altro swith che permette di scegliere il metodo di selezione "click" o "brush".
