@@ -1,6 +1,5 @@
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
-const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = " https://strike-happily-lurk.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -26,6 +25,13 @@ const sentimentColors = {
     positive: "#22c55e",
     negative: "#ef4444",
     neutral: "#94a3b8"
+};
+
+const topicLabelMap = {
+    0: "Baggage Issues",
+    1: "Flight Delays",
+    2: "Customer Service"
+    // Add the rest of your BERTopic labels here, up to topic 14.
 };
 
 const perturbationColors = {
@@ -74,18 +80,18 @@ svg.append("defs").append("marker")
 const btnPerturb = document.getElementById("btn-perturb");
 const btnClear = document.getElementById("btn-clear");
 const btnResetZoom = document.getElementById("btn-reset-zoom");
-const btnMultiSelect = document.getElementById("btn-multi-select");
 const btnZoomSelection = document.getElementById("btn-zoom-selection");
 const btnZoomOut = document.getElementById("btn-zoom-out");
 let btnPanSelection = document.getElementById("btn-pan-selection");
 const colorEncodingSelect = document.getElementById("color-encoding-select");
 const mapToolbar = document.getElementById("map-toolbar");
-
-btnMultiSelect.classList.remove("icon-btn");
-btnMultiSelect.textContent = "Box Select";
-btnMultiSelect.title = "Select multiple tweets with a box";
-btnMultiSelect.style.minWidth = "92px";
-btnMultiSelect.style.fontWeight = "600";
+const interactionClickBtn = document.getElementById("interaction-click");
+const interactionBrushBtn = document.getElementById("interaction-brush");
+const selectionPointBtn = document.getElementById("selection-point");
+const selectionClusterBtn = document.getElementById("selection-cluster");
+const selectionViewSentimentBtn = document.getElementById("selection-view-sentiment");
+const selectionViewAirlineBtn = document.getElementById("selection-view-airline");
+const selectionViewTopicBtn = document.getElementById("selection-view-topic");
 
 const centerButton = document.createElement("button");
 centerButton.id = "btn-pan-selection";
@@ -113,7 +119,12 @@ let yScale;
 let allNodesData = [];
 let selectedNodesData = [];
 let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
+let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
+let interactionMode = "click";
+let selectionMode = "point";
+let currentSelectionChartView = "sentiment";
+let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
 const tweetBasedPerturbations = ["llm_paraphrase", "llm_opposite", "noise"];
@@ -131,6 +142,161 @@ const perturbationLabels = {
     llm_opposite: "Opposite",
     noise: "Noise"
 };
+
+function getTopicLabel(topicId) {
+    return topicId === -1 ? "Outlier" : (topicLabelMap[topicId] || `Topic ${topicId}`);
+}
+
+function normalizeTopicId(value) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? -1 : parsed;
+}
+
+function getUniqueNodes(nodes) {
+    return Array.from(new Map(nodes.map(node => [node.id, node])).values());
+}
+
+function getTopicDataById(topicId) {
+    return allTopicsData.find(topic => topic.id === topicId);
+}
+
+function updateBertopicSelectionSummary(nodes) {
+    if (!nodes || !nodes.length) {
+        renderTopicBarchart(null);
+        const selector = document.getElementById("topic-selector");
+        if (selector) selector.selectedIndex = -1;
+        return;
+    }
+
+    const dominantTopicId = getDominantTopicId(nodes);
+    if (dominantTopicId === null) {
+        renderTopicBarchart(null);
+        const selector = document.getElementById("topic-selector");
+        if (selector) selector.selectedIndex = -1;
+        return;
+    }
+
+    const topicData = getTopicDataById(dominantTopicId);
+    if (!topicData) return;
+
+    // Auto-select the topic in the dropdown
+    const selector = document.getElementById("topic-selector");
+    if (selector) {
+        selector.value = String(dominantTopicId);
+    }
+
+    // Render the bar chart for the dominant topic's keywords
+    renderTopicBarchart(topicData.words);
+}
+
+function getDominantTopicId(nodes) {
+    const topicCounts = new Map();
+
+    nodes.forEach(node => {
+        if (node.topic_id === -1 || node.topic_id === undefined || node.topic_id === null) return;
+        topicCounts.set(node.topic_id, (topicCounts.get(node.topic_id) || 0) + 1);
+    });
+
+    let dominantTopicId = null;
+    let maxCount = 0;
+    topicCounts.forEach((count, topicId) => {
+        if (count > maxCount) {
+            maxCount = count;
+            dominantTopicId = topicId;
+        }
+    });
+
+    return dominantTopicId;
+}
+
+function getClusterKey(node) {
+    switch (currentSelectionChartView) {
+        case "sentiment":
+            return node.sentiment;
+        case "airline":
+            return node.airline;
+        case "topic":
+            return node.topic_id;
+        default:
+            return node.topic_id;
+    }
+}
+
+function getDominantClusterKey(nodes) {
+    const keyCounts = new Map();
+
+    nodes.forEach(node => {
+        const key = getClusterKey(node);
+        if (key === -1 || key === undefined || key === null) return;
+        keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
+    });
+
+    let dominantKey = null;
+    let maxCount = 0;
+    keyCounts.forEach((count, key) => {
+        if (count > maxCount) {
+            maxCount = count;
+            dominantKey = key;
+        }
+    });
+
+    return dominantKey;
+}
+
+function resolveClickSelectionMode(nodes, originalNode = null) {
+    const uniqueNodes = getUniqueNodes(nodes);
+    if (selectionMode !== "cluster" || !uniqueNodes.length) {
+        return uniqueNodes;
+    }
+
+    const nodeToUse = originalNode || uniqueNodes[0];
+    const selectedKey = getClusterKey(nodeToUse);
+    if (selectedKey === -1 || selectedKey === undefined || selectedKey === null) {
+        return uniqueNodes;
+    }
+
+    return allNodesData.filter(node => getClusterKey(node) === selectedKey);
+}
+
+function resolveBrushSelectionMode(nodes) {
+    const uniqueNodes = Array.from(new Map(nodes.map(node => [node.id, node])).values());
+    if (selectionMode !== "cluster" || !uniqueNodes.length) {
+        return uniqueNodes;
+    }
+
+    const dominantKey = getDominantClusterKey(uniqueNodes);
+    if (dominantKey === null) {
+        return uniqueNodes;
+    }
+
+    return allNodesData.filter(node => getClusterKey(node) === dominantKey);
+}
+
+function resolveSelectionForCurrentMode(nodes, originalNode = null) {
+    if (!nodes || !nodes.length) return [];
+    if (selectionMode !== "cluster") {
+        return getUniqueNodes(nodes);
+    }
+
+    if (interactionMode === "brush") {
+        return resolveBrushSelectionMode(nodes);
+    }
+
+    return resolveClickSelectionMode(nodes, originalNode);
+}
+
+function reapplySelectionMode() {
+    if (!selectedNodesData.length) return;
+    const resolvedNodes = resolveSelectionForCurrentMode(selectedNodesData, originalClickedNode);
+    selectNodes(resolvedNodes, { append: false, toggle: false });
+}
+
+function syncModeButtons() {
+    interactionClickBtn.classList.toggle("active", interactionMode === "click");
+    interactionBrushBtn.classList.toggle("active", interactionMode === "brush");
+    selectionPointBtn.classList.toggle("active", selectionMode === "point");
+    selectionClusterBtn.classList.toggle("active", selectionMode === "cluster");
+}
 
 function setResetButtonVisibility(visible) {
     if (!btnResetZoom) return;
@@ -217,6 +383,9 @@ function getNodeFillColor(node) {
     if (currentColorEncoding === "airline") {
         return airlineColorScale(node.airline);
     }
+    if (currentColorEncoding === "topic") {
+        return node.topic_id === -1 ? "#cbd5e1" : topicColorScale(node.topic_id);
+    }
 
     return sentimentColors[node.sentiment] || "#64748b";
 }
@@ -230,6 +399,8 @@ function updateNodeColors() {
 
         if (currentColorEncoding === "airline") {
             circle.style("fill", airlineColorScale(d.airline));
+        } else if (currentColorEncoding === "topic") {
+            circle.style("fill", d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id));
         } else {
             circle.style("fill", null);
         }
@@ -321,61 +492,209 @@ async function parseApiResponse(response) {
     return parsed;
 }
 
-function renderSelectionLegend(nodes) {
-    const container = document.getElementById("selection-legend");
+function syncSelectionChartButtons() {
+    if (selectionViewSentimentBtn) selectionViewSentimentBtn.classList.toggle("active", currentSelectionChartView === "sentiment");
+    if (selectionViewAirlineBtn) selectionViewAirlineBtn.classList.toggle("active", currentSelectionChartView === "airline");
+    if (selectionViewTopicBtn) selectionViewTopicBtn.classList.toggle("active", currentSelectionChartView === "topic");
+}
+
+function getSelectionDistributionConfig(nodes) {
+    if (currentSelectionChartView === "airline") {
+        return {
+            title: "Airlines",
+            data: d3.rollups(nodes, values => values.length, d => d.airline).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+            labelAccessor: label => label,
+            colorAccessor: label => airlineColorScale(label)
+        };
+    }
+
+    if (currentSelectionChartView === "topic") {
+        return {
+            title: "Topics",
+            data: d3.rollups(nodes, values => values.length, d => d.topic_id).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+            labelAccessor: label => getTopicLabel(label),
+            colorAccessor: label => label === -1 ? "#cbd5e1" : topicColorScale(label)
+        };
+    }
+
+    return {
+        title: "Sentiments",
+        data: d3.rollups(nodes, values => values.length, d => d.sentiment).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+        labelAccessor: label => label,
+        colorAccessor: label => sentimentColors[label] || "#64748b"
+    };
+}
+
+function renderSelectionDistributionChart(nodes) {
+    syncSelectionChartButtons();
+
+    const container = d3.select("#selection-distribution-chart");
+    container.html("");
 
     if (!nodes.length) {
-        container.innerHTML = '<div class="selection-empty">Select one or more points to see selected sentiment and airline legend.</div>';
+        topicDistributionTooltip.style("opacity", 0);
+        container
+            .attr("class", "chart-placeholder")
+            .html("<em>Select one or more points to see the selection distribution.</em>");
         return;
     }
 
-    const sentimentCounts = d3.rollups(nodes, values => values.length, d => d.sentiment)
-        .sort((a, b) => d3.ascending(a[0], b[0]));
-    const airlineCounts = d3.rollups(nodes, values => values.length, d => d.airline)
-        .sort((a, b) => d3.ascending(a[0], b[0]));
+    const config = getSelectionDistributionConfig(nodes);
+    const chartData = config.data.map(([key, count]) => ({
+        key,
+        label: config.labelAccessor(key),
+        count,
+        color: config.colorAccessor(key)
+    }));
 
-    const renderItems = (items, colorFn) => items.map(([label, count]) => `
-        <div class="legend-item">
-            <span class="legend-swatch" style="background:${colorFn(label)};"></span>
-            <span>${label} (${count})</span>
-        </div>
-    `).join("");
+    const showHistogram = (
+        (interactionMode === "brush" && selectionMode === "point")
+    ) && (currentSelectionChartView === "sentiment" || currentSelectionChartView === "airline" || (interactionMode === "brush" && selectionMode === "point" && currentSelectionChartView === "topic"));
 
-    container.innerHTML = `
-        <div class="legend-group">
-            <div class="legend-title">Selected Sentiments</div>
-            <div class="legend-items">${renderItems(sentimentCounts, label => sentimentColors[label] || "#64748b")}</div>
-        </div>
-        <div class="legend-group">
-            <div class="legend-title">Selected Airlines</div>
-            <div class="legend-items">${renderItems(airlineCounts, label => airlineColorScale(label))}</div>
-        </div>
-    `;
+    container.attr("class", "");
+
+    if (showHistogram) {
+        const total = nodes.length;
+        const chartWidth = Math.max(document.getElementById("selection-distribution-chart").clientWidth || 0, 320);
+        const chartHeight = 250;
+        const margin = { top: 18, right: 18, bottom: 78, left: 54 };
+        const innerWidth = chartWidth - margin.left - margin.right;
+        const innerHeight = chartHeight - margin.top - margin.bottom;
+
+        const svg = container.append("svg")
+            .attr("width", chartWidth)
+            .attr("height", chartHeight)
+            .attr("viewBox", `0 0 ${chartWidth} ${chartHeight}`)
+            .attr("preserveAspectRatio", "xMidYMid meet");
+
+        const chart = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleBand()
+            .domain(chartData.map(d => d.label))
+            .range([0, innerWidth])
+            .padding(0.22);
+
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(chartData, d => (d.count / total) * 100) || 1])
+            .nice()
+            .range([innerHeight, 0]);
+
+        chart.append("g")
+            .attr("transform", `translate(0,${innerHeight})`)
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .style("font-size", "11px")
+            .style("fill", "#475569")
+            .attr("transform", "rotate(-24)")
+            .style("text-anchor", "end");
+
+        chart.append("g")
+            .call(d3.axisLeft(y).ticks(5).tickFormat(d => `${d}%`))
+            .style("font-size", "11px")
+            .style("color", "#475569");
+
+        chart.selectAll(".domain, .tick line")
+            .attr("stroke", "#cbd5e1");
+
+        chart.selectAll(".selection-distribution-bar")
+            .data(chartData)
+            .enter()
+            .append("rect")
+            .attr("class", "selection-distribution-bar")
+            .attr("x", d => x(d.label))
+            .attr("y", d => y((d.count / total) * 100))
+            .attr("width", x.bandwidth())
+            .attr("height", d => innerHeight - y((d.count / total) * 100))
+            .attr("rx", 6)
+            .attr("fill", d => d.color)
+            .on("mousemove", function (event, d) {
+                topicDistributionTooltip
+                    .style("opacity", 1)
+                    .html(`<strong>${config.title}: ${d.label}</strong>${d.count} tweets<br>${((d.count / total) * 100).toFixed(1)}% of selection`)
+                    .style("left", `${event.clientX + 14}px`)
+                    .style("top", `${event.clientY + 14}px`);
+            })
+            .on("mouseleave", function () {
+                topicDistributionTooltip.style("opacity", 0);
+            });
+
+        chart.selectAll(".selection-distribution-label")
+            .data(chartData)
+            .enter()
+            .append("text")
+            .attr("class", "selection-distribution-label")
+            .attr("x", d => x(d.label) + x.bandwidth() / 2)
+            .attr("y", d => y((d.count / total) * 100) - 8)
+            .attr("text-anchor", "middle")
+            .style("font-size", "11px")
+            .style("font-weight", "700")
+            .style("fill", "#334155")
+            .text(d => `${((d.count / total) * 100).toFixed(0)}%`);
+
+        return;
+    }
+
+    const titleDiv = document.createElement("div");
+    titleDiv.style.cssText = "font-size: 0.85rem; font-weight: 700; color: #334155; margin-bottom: 12px; text-transform: uppercase;";
+    titleDiv.innerText = `SELECTED ${config.title.toUpperCase()}`;
+    container.node().appendChild(titleDiv);
+
+    const legendDiv = document.createElement("div");
+    legendDiv.style.cssText = "display: flex; flex-direction: column; gap: 8px;";
+
+    chartData.forEach(item => {
+        const itemDiv = document.createElement("div");
+        itemDiv.style.cssText = "display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: #334155;";
+
+        const swatch = document.createElement("div");
+        swatch.style.cssText = `width: 12px; height: 12px; border-radius: 50%; background-color: ${item.color}; flex-shrink: 0;`;
+
+        const label = document.createElement("span");
+        const showCount = !(nodes.length === 1 && item.count === 1);
+        label.innerText = showCount ? `${item.label} (${item.count})` : item.label;
+
+        itemDiv.appendChild(swatch);
+        itemDiv.appendChild(label);
+        legendDiv.appendChild(itemDiv);
+    });
+
+    container.node().appendChild(legendDiv);
 }
 
 function renderMapLegends(nodes = []) {
     const legendLabel = document.getElementById("map-legend-label");
     const legendItems = document.getElementById("map-legend-items");
 
-    const legendData = currentColorEncoding === "airline"
-        ? (
-            nodes.length
-                ? d3.rollups(nodes, values => values.length, d => d.airline)
-                : airlineColorScale.domain().map(label => [label, null])
-        )
-        : (
-            nodes.length
-                ? d3.rollups(nodes, values => values.length, d => d.sentiment)
-                : Object.keys(sentimentColors).map(label => [label, null])
-        );
+    let legendData;
+    if (currentColorEncoding === "airline") {
+        legendLabel.innerText = "Airline";
+        legendData = nodes.length
+            ? d3.rollups(nodes, values => values.length, d => d.airline)
+            : airlineColorScale.domain().map(label => [label, null]);
+    } else if (currentColorEncoding === "topic") {
+        legendLabel.innerText = "Topic";
+        legendData = nodes.length
+            ? d3.rollups(nodes, values => values.length, d => d.topic_id).sort((a, b) => a[0] - b[0])
+            : [-1, ...topicColorScale.domain()].map(label => [label, null]);
+    } else {
+        legendLabel.innerText = "Sentiment";
+        legendData = nodes.length
+            ? d3.rollups(nodes, values => values.length, d => d.sentiment)
+            : Object.keys(sentimentColors).map(label => [label, null]);
+    }
 
-    legendLabel.innerText = currentColorEncoding === "airline" ? "Airline" : "Sentiment";
-    legendItems.innerHTML = legendData.map(([label, count]) => `
+    legendItems.innerHTML = legendData.map(([label, count]) => {
+        let color = currentColorEncoding === "airline" ? airlineColorScale(label) : (currentColorEncoding === "topic" ? (label === -1 ? "#cbd5e1" : topicColorScale(label)) : (sentimentColors[label] || "#64748b"));
+        let displayLabel = currentColorEncoding === "topic" ? getTopicLabel(label) : label;
+        
+        return `
         <div class="map-legend-item">
-            <span class="map-legend-swatch" style="background:${currentColorEncoding === "airline" ? airlineColorScale(label) : (sentimentColors[label] || "#64748b")};"></span>
-            <span>${label}${count !== null ? ` (${count})` : ""}</span>
+            <span class="map-legend-swatch" style="background:${color};"></span>
+            <span>${displayLabel}${count !== null ? ` (${count})` : ""}</span>
         </div>
-    `).join("");
+        `;
+    }).join("");
 }
 
 function updateSelectionUI() {
@@ -399,8 +718,9 @@ function updateSelectionUI() {
     if (btnClearSelection) btnClearSelection.disabled = !hasSelection;
 
     document.getElementById("selection-count").innerText = `${selectedNodesData.length} tweet${selectedNodesData.length === 1 ? "" : "s"} selected`;
-    renderSelectionLegend(selectedNodesData);
+    renderSelectionDistributionChart(selectedNodesData);
     renderMapLegends(selectedNodesData);
+    updateBertopicSelectionSummary(selectedNodesData);
 
     if (!hasSelection) {
         document.getElementById("tw-id").innerText = "-";
@@ -428,12 +748,13 @@ function updateSelectionUI() {
     document.getElementById("tw-id").innerText = node.id;
     document.getElementById("tw-sentiment").innerText = node.sentiment;
     renderTokenAnalysis(node.text);
-    renderHeatmap(node.text);
+    //renderHeatmap(node.text);
     // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
 }
 
 function clearSelection() {
     selectedNodesData = [];
+    originalClickedNode = null;
     clearKeywordHighlight();
     resetPerturbationResults();
     linkLayer.selectAll("*").remove();
@@ -446,7 +767,11 @@ function clearSelection() {
         .duration(800)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .style("fill", d => currentColorEncoding === "airline" ? airlineColorScale(d.airline) : null)
+        .style("fill", d => {
+            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
+            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
+            return null;
+        })
         .style("stroke", null)
         .style("stroke-width", null);
 
@@ -541,8 +866,30 @@ function centerSelectionInView(nodes, duration = 320) {
 
 function setBrushMode(active) {
     brushModeActive = active;
-    brushLayer.style("display", active ? null : "none");
-    btnMultiSelect.classList.toggle("active", active);
+    brushLayer
+        .style("display", active ? null : "none")
+        .style("pointer-events", active ? "all" : "none");
+}
+
+function setInteractionMode(mode) {
+    interactionMode = mode;
+    setBrushMode(mode === "brush");
+    if (mode !== "brush") {
+        brushLayer.call(brush.move, null);
+    }
+    syncModeButtons();
+    if (selectionMode === "cluster") {
+        reapplySelectionMode();
+    }
+}
+
+function setSelectionMode(mode) {
+    selectionMode = mode;
+    if (mode === "point") {
+        originalClickedNode = null;
+    }
+    syncModeButtons();
+    reapplySelectionMode();
 }
 
 const zoom = d3.zoom()
@@ -569,7 +916,7 @@ const zoom = d3.zoom()
 const brush = d3.brush()
     .extent([[0, 0], [width, height]])
     .on("end", function (event) {
-        if (!event.selection) return;
+        if (interactionMode !== "brush" || !event.selection) return;
 
         const [[x0, y0], [x1, y1]] = event.selection;
         const transform = d3.zoomTransform(svg.node());
@@ -580,19 +927,19 @@ const brush = d3.brush()
             return screenX >= x0 && screenX <= x1 && screenY >= y0 && screenY <= y1;
         });
 
-        selectNodes(brushedNodes);
-        if (brushedNodes.length > 0) {
+        const resolvedNodes = resolveBrushSelectionMode(brushedNodes);
+        selectNodes(resolvedNodes);
+        if (resolvedNodes.length > 0) {
             setCenterButtonEnabled(true);
+            fitSelectionToView(resolvedNodes, 380);
         }
         brushLayer.call(brush.move, null);
-        setBrushMode(false);
-        
-        fitSelectionToView(brushedNodes, 380);
-        console.log("Brushed:", brushedNodes.length);
+        console.log("Brushed:", resolvedNodes.length);
     });
 
 svg.call(zoom).on("dblclick.zoom", null);
 brushLayer.call(brush);
+setInteractionMode("click");
 
 svg.on("mousedown.panCursor", function (event) {
     if (brushModeActive) return;
@@ -616,13 +963,16 @@ document.addEventListener("mouseup", () => document.body.classList.remove("panni
 document.addEventListener("mouseleave", () => document.body.classList.remove("panning"));
 
 d3.csv("base_map.csv", function (d) {
+    const topicId = normalizeTopicId(d.topic_id);
     return {
         id: d.tweet_id,
         text: d.text,
         sentiment: d.sentiment,
         airline: d.airline,
         x: +d.x,
-        y: +d.y
+        y: +d.y,
+        topic_id: topicId,
+        topic_label: d.topic_label || getTopicLabel(topicId)
     };
 }).then(function (data) {
     allNodesData = data;
@@ -651,6 +1001,7 @@ d3.csv("base_map.csv", function (d) {
 
     const bigDataset = data.length > 2000;
     airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.airline))]);
+    topicColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.topic_id))].filter(t => t !== -1).sort((a, b) => a - b));
     renderMapLegends();
 
     nodeLayer.selectAll("circle.node")
@@ -669,7 +1020,13 @@ d3.csv("base_map.csv", function (d) {
         .style("opacity", bigDataset ? 0.5 : 0.8)
         .on("click", function (event, d) {
             const isMultiAdd = event.ctrlKey || event.metaKey;
-            selectNodes([d], { append: isMultiAdd, toggle: isMultiAdd });
+            if (!isMultiAdd) {
+                originalClickedNode = d;
+            }
+            const nodesToSelect = resolveClickSelectionMode([d], d);
+            // Toggle on single click (no modifiers) and on multi-add with modifiers (only in cluster mode)
+            const allowAppend = isMultiAdd && selectionMode === "cluster";
+            selectNodes(nodesToSelect, { append: allowAppend, toggle: true });
             event.stopPropagation();
         });
 
@@ -690,7 +1047,7 @@ d3.csv("base_map.csv", function (d) {
         currentColorEncoding = event.target.value;
         updateNodeColors();
         renderMapLegends(selectedNodesData);
-        renderSelectionLegend(selectedNodesData);
+        renderSelectionDistributionChart(selectedNodesData);
     });
 
     setResetButtonVisibility(false);
@@ -702,51 +1059,89 @@ d3.csv("base_map.csv", function (d) {
     alert("Make sure base_map.csv is loaded and you are running a local server.");
 });
 
+// Token Analysis
 function renderTokenAnalysis(text) {
-    // Mostra il testo originale semplice
+    // Opzionale: se hai ancora il div per il testo semplice, lascialo, altrimenti puoi rimuovere questa riga
     d3.select("#tw-text-simple").text(text);
     
     const container = d3.select("#tw-text");
-    container.html("<em>Calculating token weights...</em>");
+    container.html("<em style='color: #64748b;'>Calculating token ablation weights...</em>");
 
     postJson("/api/token_weights", { text })
         .then(data => {
             if (!Array.isArray(data) || data.length === 0) {
-                container.html("<em>No token data available.</em>");
+                container.html("<em style='color: #ef4444;'>No token data available for this text.</em>");
                 return;
             }
 
-            container.html("");
+            container.html(""); // Svuota il contenitore
+            
+            // 1. Calcola il massimo per la scala colori
             const maxWeight = d3.max(data, d => d.weight) || 0.01;
-            const colorScale = d3.scaleSequential(d3.interpolateReds).domain([0, maxWeight]);
+            // DEBUG: print the maximum weight and all token weights
+            console.log("Max token weight:", maxWeight);
+            console.table(
+                data.map(d => ({
+                    word: d.word,
+                    weight: d.weight
+                }))
+            );
+            const colorScale = d3.scaleSequential()
+                .domain([0, maxWeight])
+                .interpolator(d3.interpolateRgbBasis([
+                    "#0b1026", // very dark blue
+                    "#1e3a8a", // deep blue
+                    "#2563eb", // blue
+                    "#38bdf8", // light blue
+                    "#67e8f9", // cyan
+                    "#84cc16", // green
+                    "#fde047", // yellow
+                    "#facc15", // golden yellow
+                    "#fef9c3"  // pale yellow
+                ]));
 
+            // 2. Disegna gli span (le parole)
             data.forEach(item => {
                 container.append("span")
                     .attr("class", "token")
+                    // Tooltip nativo al passaggio del mouse!
+                    .attr("title", `Impact Score: ${item.weight.toFixed(3)}`) 
                     .style("background-color", colorScale(item.weight))
-                    .style("color", item.weight > maxWeight * 0.5 ? "white" : "black")
-                    .style("cursor", "pointer") // Puntatore a manina
-                    .text(`${item.word} `)
-                    .on("click", function() {
-                        // 1. Spegni eventuali altre parole selezionate
-                        container.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)");
+                    .style("color", item.weight > (maxWeight * 0.5) ?  "#0f172a" : "#ffffff" )
+                    .text(`${item.word} `) // Nota lo spazio finale per distanziare le parole
+                    .on("click", function(event) {
+                        // A. Spegni eventuali altre parole selezionate ripristinando lo stile di default
+                        container.selectAll(".token")
+                            .style("border", "1.5px solid transparent")
+                            .style("box-shadow", "none");
                         
-                        // 2. Evidenzia questa parola (bordo blu)
+                        // B. Evidenzia QUESTA parola (Bordo nero netto, stile Heatmap)
                         d3.select(this)
-                          .style("outline", "2px solid #1d4ed8")
-                          .style("box-shadow", "0 2px 5px rgba(0,0,0,0.2)")
-                          .style("transform", "scale(1.05)");
+                            .style("border", "1.5px solid #000") // Più elegante dell'outline
+                            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.2)");
 
-                        // 3. Salva la parola e mostra il banner
+                        // C. Salva la parola come Target globale
                         targetWordForPerturbation = item.word.trim();
-                        updatePerturbationButtonState(); // Update button state and visibility
+                        
+                        const displayEl = document.getElementById("target-word-display");
+                        if (displayEl) displayEl.innerText = targetWordForPerturbation;
+                        
+                        const infoEl = document.getElementById("target-word-info");
+                        if (infoEl) infoEl.style.display = "block";
+
+                        // D. Aggiorna i bottoni
+                        if (typeof updatePerturbationButtonState === "function") {
+                            updatePerturbationButtonState();
+                        }
                     });
             });
         })
         .catch(err => {
             console.error("Token weight error:", err);
-            container.html(`<em>Error loading token weights.</em><br><small>${err.message}</small>`);
-            updatePerturbationButtonState(); // Ensure button state is updated even on error
+            container.html(`<em style='color: #ef4444;'>Error loading token weights.</em><br><small>${err.message}</small>`);
+            if (typeof updatePerturbationButtonState === "function") {
+                updatePerturbationButtonState(); 
+            }
         });
 }
 
@@ -898,7 +1293,11 @@ document.getElementById("btn-clear").addEventListener("click", () => {
         .duration(800)
         .attr("cx", d => xScale(d.x))
         .attr("cy", d => yScale(d.y))
-        .style("fill", d => currentColorEncoding === "airline" ? airlineColorScale(d.airline) : null)
+        .style("fill", d => {
+            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
+            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
+            return null;
+        })
         .style("stroke", null)
         .style("stroke-width", null);
 
@@ -906,86 +1305,7 @@ document.getElementById("btn-clear").addEventListener("click", () => {
     resetPerturbationResults();
 });
 
-function renderHeatmap(text) {
-    const container = d3.select("#heatmap-container");
-    container.html("<em>Generating heatmap matrix...</em>");
 
-    postJson("/api/heatmap", { text })
-        .then(heatmapData => {
-            if (heatmapData.error) {
-                container.html(`<div style="color: red; padding: 10px;"><strong>Backend Error:</strong> ${heatmapData.error}</div>`);
-                console.error("Heatmap backend error:", heatmapData.error);
-                return;
-            }
-
-            container.html("");
-
-            const tokens = [...new Set(heatmapData.map(d => d.token))];
-            const perturbations = [...new Set(heatmapData.map(d => d.perturbation))];
-            const hmWidth = document.getElementById("details-panel").clientWidth - 40;
-            const hmHeight = 150;
-            const margin = { top: 20, right: 10, bottom: 40, left: 60 };
-
-            const hmSvg = container.append("svg")
-                .attr("width", hmWidth)
-                .attr("height", hmHeight);
-
-            const xBand = d3.scaleBand()
-                .domain(tokens)
-                .range([margin.left, hmWidth - margin.right])
-                .padding(0.05);
-
-            const yBand = d3.scaleBand()
-                .domain(perturbations)
-                .range([margin.top, hmHeight - margin.bottom])
-                .padding(0.05);
-
-            const maxImportance = d3.max(heatmapData, d => d.importance) || 0.01;
-            const colorHm = d3.scaleSequential(d3.interpolateReds).domain([0, maxImportance]);
-
-            hmSvg.append("g")
-                .attr("transform", `translate(0,${hmHeight - margin.bottom})`)
-                .call(d3.axisBottom(xBand))
-                .selectAll("text")
-                .attr("transform", "rotate(-20)")
-                .style("text-anchor", "end")
-                .style("font-size", "11px");
-
-            hmSvg.append("g")
-                .attr("transform", `translate(${margin.left},0)`)
-                .call(d3.axisLeft(yBand))
-                .style("font-size", "11px");
-
-            hmSvg.selectAll("rect")
-                .data(heatmapData)
-                .enter()
-                .append("rect")
-                .attr("x", d => xBand(d.token))
-                .attr("y", d => yBand(d.perturbation))
-                .attr("width", xBand.bandwidth())
-                .attr("height", yBand.bandwidth())
-                .style("fill", d => colorHm(d.importance))
-                .style("stroke", "#ccc")
-                .style("stroke-width", 0.5)
-                .append("title")
-                .text(d => `Token: ${d.token}\nPerturbation: ${d.perturbation}\nImportance: ${d.importance.toFixed(2)}`);
-
-            hmSvg.selectAll(".tick text")
-                .style("cursor", "pointer")
-                .style("font-weight", "bold")
-                .on("mouseover", function () { d3.select(this).style("fill", "#ef4444"); })
-                .on("mouseout", function () { d3.select(this).style("fill", "#475569"); })
-                .on("click", function (event, selectedToken) {
-                    nodeLayer.selectAll("circle.node").classed("dimmed", false);
-                    nodeLayer.selectAll("circle.node")
-                        .classed("dimmed", d => !d.text.toLowerCase().includes(selectedToken.toLowerCase()));
-                });
-        })
-        .catch(err => {
-            console.error("Heatmap error:", err);
-            container.html(`<em>Error loading heatmap.</em><br><small>${err.message}</small>`);
-        });
-}
 
 if (btnResetZoom) {
     btnResetZoom.addEventListener("click", () => {
@@ -993,9 +1313,57 @@ if (btnResetZoom) {
     });
 }
 
-if (btnMultiSelect) {
-    btnMultiSelect.addEventListener("click", () => {
-        setBrushMode(!brushModeActive);
+if (interactionClickBtn) {
+    interactionClickBtn.addEventListener("click", () => {
+        setInteractionMode("click");
+    });
+}
+
+if (interactionBrushBtn) {
+    interactionBrushBtn.addEventListener("click", () => {
+        setInteractionMode("brush");
+    });
+}
+
+if (selectionPointBtn) {
+    selectionPointBtn.addEventListener("click", () => {
+        setSelectionMode("point");
+    });
+}
+
+if (selectionClusterBtn) {
+    selectionClusterBtn.addEventListener("click", () => {
+        setSelectionMode("cluster");
+    });
+}
+
+if (selectionViewSentimentBtn) {
+    selectionViewSentimentBtn.addEventListener("click", () => {
+        currentSelectionChartView = "sentiment";
+        renderSelectionDistributionChart(selectedNodesData);
+        if (selectedNodesData.length > 0) {
+            reapplySelectionMode();
+        }
+    });
+}
+
+if (selectionViewAirlineBtn) {
+    selectionViewAirlineBtn.addEventListener("click", () => {
+        currentSelectionChartView = "airline";
+        renderSelectionDistributionChart(selectedNodesData);
+        if (selectedNodesData.length > 0) {
+            reapplySelectionMode();
+        }
+    });
+}
+
+if (selectionViewTopicBtn) {
+    selectionViewTopicBtn.addEventListener("click", () => {
+        currentSelectionChartView = "topic";
+        renderSelectionDistributionChart(selectedNodesData);
+        if (selectedNodesData.length > 0) {
+            reapplySelectionMode();
+        }
     });
 }
 
@@ -1227,3 +1595,189 @@ document.getElementById("btn-reset-filters").addEventListener("click", () => {
     document.getElementById("filter-length").value = 40;
     applyFilters(); // Ricalcola per togliere il dimming a tutti
 });
+
+
+// BERTopic
+let allTopicsData = [];
+let activeTopicSelectionId = null;
+let topicSelectorValueBeforeClick = null;
+
+function clearTopicSelection() {
+    activeTopicSelectionId = null;
+
+    const selector = document.getElementById("topic-selector");
+    if (selector) {
+        selector.selectedIndex = -1;
+    }
+
+    renderTopicBarchart(null);
+    nodeLayer.selectAll("circle.node")
+        .style("opacity", null)
+        .style("stroke", null)
+        .style("stroke-width", null);
+}
+
+function applyTopicSelection(selectedId) {
+    const topicData = allTopicsData.find(t => t.id === selectedId);
+    if (!topicData) return;
+
+    activeTopicSelectionId = selectedId;
+    renderTopicBarchart(topicData.words);
+
+    d3.selectAll("circle.node")
+        .transition()
+        .duration(400)
+        .style("opacity", d => d.topic_id === selectedId ? 1.0 : 0.05)
+        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
+        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+}
+
+// 1. Scarica i dati all'avvio// Usa la tua variabile globale per puntare al server corretto
+fetch(API_BASE_URL + '/api/topics', {
+    method: 'GET',
+    headers: {
+        // Mantiene il bypass per la schermata di sicurezza di Ngrok
+        'ngrok-skip-browser-warning': 'true' 
+    }
+})
+.then(res => {
+    if (!res.ok) {
+        throw new Error(`Errore Server HTTP: ${res.status}`);
+    }
+    return res.json();
+})
+.then(data => {
+    allTopicsData = data.map(topic => ({
+        ...topic,
+        label: topic.label || getTopicLabel(normalizeTopicId(topic.id))
+    }));
+    
+    // Popola la lista cliccabile
+    const selector = d3.select("#topic-selector");
+    allTopicsData.forEach(topic => {
+        selector.append("option")
+            .attr("value", topic.id)
+            .text(`${topic.label} (${topic.count} tweets)`);
+    });
+
+    // Ascolta il click
+    selector.on("change", function() {
+        const selectedId = parseInt(this.value);
+        const topicData = allTopicsData.find(t => t.id === selectedId);
+        renderTopicBarchart(topicData.words);
+
+        d3.selectAll("circle.node")
+        .transition()
+        .duration(400) // Animazione fluida
+        .style("opacity", d => {
+            // Se il topic coincide, massima opacità. Altrimenti quasi trasparenti.
+            return d.topic_id === selectedId ? 1.0 : 0.05; 
+        })
+        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
+        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+
+    });
+
+    selector.on("change", null);
+
+    const topicSelectorElement = document.getElementById("topic-selector");
+    if (topicSelectorElement && !topicSelectorElement.dataset.toggleBound) {
+        topicSelectorElement.dataset.toggleBound = "true";
+
+        topicSelectorElement.addEventListener("mousedown", function () {
+            topicSelectorValueBeforeClick = this.value;
+        });
+
+        topicSelectorElement.addEventListener("change", function () {
+            const selectedId = parseInt(this.value, 10);
+            if (!Number.isNaN(selectedId)) {
+                applyTopicSelection(selectedId);
+            }
+        });
+
+        topicSelectorElement.addEventListener("click", function () {
+            const clickedId = parseInt(this.value, 10);
+            if (
+                !Number.isNaN(clickedId) &&
+                topicSelectorValueBeforeClick === this.value &&
+                clickedId === activeTopicSelectionId
+            ) {
+                clearTopicSelection();
+            }
+        });
+    }
+})
+.catch(err => {
+    console.error("❌ Errore durante il caricamento dei Topic:", err);
+});
+
+// 2. Disegna il grafico a barre per le parole
+function renderTopicBarchart(words) {
+    const container = d3.select("#topic-barchart");
+    container.html(""); // Pulisci
+
+    if (!words || !words.length) {
+        container.html('<em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see keywords...</em>');
+        return;
+    }
+    
+    // Dimensioni
+    const width = document.getElementById("topic-barchart").clientWidth;
+    const height = 120;
+    const margin = {top: 10, right: 10, bottom: 20, left: 60};
+
+    const svg = container.append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    // Scale
+    const x = d3.scaleLinear()
+        .domain([0, d3.max(words, d => d.weight)])
+        .range([margin.left, width - margin.right]);
+
+    const y = d3.scaleBand()
+        .domain(words.map(d => d.word))
+        .range([margin.top, height - margin.bottom])
+        .padding(0.2);
+
+    // Asse Y (Le parole)
+    svg.append("g")
+        .attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(y).tickSize(0))
+        .selectAll("text")
+        .style("font-size", "11px")
+        .style("fill", "#334155");
+
+    // Rimuovi la linea dell'asse per un look più pulito
+    svg.selectAll(".domain").remove();
+
+    // Barre orizzontali
+    svg.selectAll("rect")
+        .data(words)
+        .enter()
+        .append("rect")
+        .attr("x", margin.left)
+        .attr("y", d => y(d.word))
+        .attr("width", d => x(d.weight) - margin.left)
+        .attr("height", y.bandwidth())
+        .attr("fill", "#3b82f6") // Blu accattivante
+        .attr("border-radius", "4px");
+}
+
+const topicDistributionTooltip = d3.select("body")
+    .append("div")
+    .attr("class", "chart-tooltip");
+
+
+function updateTopicFromMapSelection(brushedNodes) {
+    if (!brushedNodes || brushedNodes.length === 0) return;
+
+    const dominantTopicId = getDominantTopicId(brushedNodes);
+    if (dominantTopicId === null) return;
+
+    const selector = document.getElementById("topic-selector");
+    if (selector) {
+        selector.value = String(dominantTopicId);
+    }
+    updateBertopicSelectionSummary(brushedNodes);
+}

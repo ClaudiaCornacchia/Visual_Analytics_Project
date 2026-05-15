@@ -40,6 +40,9 @@
         .legend-item { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 999px; font-size: 0.84rem; color: #334155; }
         .legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.2); flex: 0 0 auto; }
         .selection-empty { font-size: 0.88rem; color: #64748b; }
+        .selection-chart-toggle { display: inline-flex; gap: 6px; margin-top: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .selection-chart-btn { border: 1px solid #cbd5e1; background: #ffffff; color: #475569; border-radius: 999px; padding: 5px 10px; font-size: 0.8rem; cursor: pointer; }
+        .selection-chart-btn.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 700; }
 
         /* Contenitore Testi */
         #tw-text { font-size: 15px; line-height: 1.7; background: #e2e8f0; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px; }
@@ -58,12 +61,20 @@
         .toolbar-pill { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 2px 8px rgba(15,23,42,0.12); border: 1px solid #cbd5e1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.82rem; }
         .toolbar-pill.icon-btn { width: 36px; padding: 0; font-size: 1rem; }
         .toolbar-pill select { border: none; background: transparent; font-size: 0.82rem; padding: 0; outline: none; }
+        .toolbar-toggle { display: flex; align-items: center; gap: 6px; padding: 4px 6px; height: auto; min-height: 36px; }
+        .toolbar-toggle-label { font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; white-space: nowrap; }
+        .toolbar-toggle-group { display: inline-flex; gap: 4px; }
+        .toolbar-toggle-btn { border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; color: #475569; cursor: pointer; }
+        .toolbar-toggle-btn.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; }
         #map-legend-panel { position: absolute; left: 18px; bottom: 18px; background: rgba(255,255,255,0.96); border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 2px 8px rgba(15,23,42,0.08); padding: 10px 12px; min-width: 220px; z-index: 10; }
         .map-legend-header { font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 8px; text-transform: uppercase; }
         .map-legend-label { font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; }
         .map-legend-items { display: flex; flex-wrap: wrap; gap: 6px; }
         .map-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 4px 8px; }
         .map-legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.15); }
+        .chart-placeholder { min-height: 120px; display: flex; align-items: center; justify-content: center; text-align: center; color: #94a3b8; font-size: 0.9rem; }
+        .chart-tooltip { position: fixed; pointer-events: none; z-index: 1000; background: rgba(15, 23, 42, 0.94); color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24); opacity: 0; transition: opacity 0.12s ease; }
+        .chart-tooltip strong { display: block; margin-bottom: 2px; color: #ffffff; }
 
         /* SVG Mappa */
         #map { cursor: default; display: block; width: 100%; height: 100%; }
@@ -101,6 +112,22 @@
             stroke-width: 1.5px;
         }
 
+        .token {
+            display: inline-block;
+            padding: 1px 4px;      /* Poco padding per avvicinare le lettere */
+            margin: 0px 1px;       /* Quasi zero margine per fluidità di lettura */
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            border: 1.5px solid transparent; 
+        }
+
+        .token:hover {
+            transform: translateY(-2px); 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-color: #94a3b8;
+        }
+
 
     </style>
 </head>
@@ -112,9 +139,23 @@
                 <select id="color-encoding-select" aria-label="Color encoding">
                     <option value="sentiment">Sentiment</option>
                     <option value="airline">Airline</option>
+                    <option value="topic">Topic</option>
                 </select>
             </label>
-            <button id="btn-multi-select" class="toolbar-pill icon-btn control-btn" title="Area selection">□</button>
+            <div class="toolbar-pill toolbar-toggle" title="Interaction mode">
+                <span class="toolbar-toggle-label">Interaction</span>
+                <div id="interaction-mode-toggle" class="toolbar-toggle-group">
+                    <button id="interaction-click" class="toolbar-toggle-btn active" type="button">🖱️ Click</button>
+                    <button id="interaction-brush" class="toolbar-toggle-btn" type="button">🔲 Brush</button>
+                </div>
+            </div>
+            <div class="toolbar-pill toolbar-toggle" title="Selection mode">
+                <span class="toolbar-toggle-label">Selection</span>
+                <div id="selection-mode-toggle" class="toolbar-toggle-group">
+                    <button id="selection-point" class="toolbar-toggle-btn active" type="button">📍 Point-based</button>
+                    <button id="selection-cluster" class="toolbar-toggle-btn" type="button">🔗 Cluster-based</button>
+                </div>
+            </div>
             <button id="btn-zoom-selection" class="toolbar-pill icon-btn" title="Zoom in">+</button>
             <button id="btn-zoom-out" class="toolbar-pill icon-btn" title="Zoom out">-</button>
             <button id="btn-pan-selection" class="toolbar-pill icon-btn" title="Center selection" disabled>◎</button>
@@ -145,23 +186,42 @@
             </div>
             <div class="selection-summary">
                 <div class="summary-line"><strong>Selection:</strong> <span id="selection-count">0 tweets selected</span></div>
-                <div id="selection-legend">
-                    <div class="selection-empty">Select one or more points to see selected sentiment and airline legend.</div>
+                <div class="selection-chart-toggle">
+                    <button id="selection-view-sentiment" class="selection-chart-btn active" type="button">Sentiments</button>
+                    <button id="selection-view-airline" class="selection-chart-btn" type="button">Airlines</button>
+                    <button id="selection-view-topic" class="selection-chart-btn" type="button">Topics</button>
+                </div>
+                <div id="selection-distribution-chart" class="chart-placeholder">
+                    <em>Select one or more points to see the selection distribution.</em>
                 </div>
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-title">
-                <span>TOKEN ANALYSIS</span>
-                <div class="legend-box">
-                    WORD WEIGHT:<br>
-                    <div class="gradient-bar"></div><br>
-                    Red=High, White=Low
+        <div class="card" id="token-analysis-card">
+            <div class="card-title" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <span>TOKEN ANALYSIS HEATMAP </span>
+                    <div style="font-size: 0.75rem; color: #64748b; font-weight: normal; margin-top: 2px;">
+                        Click a word to select it as a perturbation target
+                    </div>
                 </div>
-            </div>
-            <div id="tw-text" style="font-size: 15px; line-height: 1.7; background: #e2e8f0; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px;">Select a point on the map to see token weights...</div>
+                
+                <!-- Legenda Visiva con Gradiente (Stile Heatmap) -->
+                <div class="legend-box" style="background:#f8fafc; padding:6px 12px; border-radius:6px; border:1px solid #e2e8f0; min-width:140px;">
+                    <div style="font-size:0.7rem; font-weight:bold; text-align:center; margin-bottom:5px; color:#334155;">Ablation Impact</div>
+                    <div style="height:8px; background:linear-gradient(to right, #0b1026 0%, #1e3a8a 15%, #2563eb 30%, #38bdf8 45%, #67e8f9 55%, #84cc16 65%, #fde047 80%, #facc15 90%, #fef9c3 100%); border-radius:4px; border:1px solid #cbd5e1; margin-bottom:4px;"></div>
+                    <div style="display:flex; justify-content:space-between; color:#64748b; font-size:0.65rem; font-weight:bold;">
+                        <span>Low</span>
+                        <span>High</span>
+                    </div>
+                </div>
         </div>
+    
+    <!-- Il contenitore con lo stile pulito che abbiamo definito -->
+    <div id="tw-text" style="line-height: 2; font-size: 1.05rem; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 6px; background: #ffffff; min-height: 80px; color: #0f172a; margin-top: 15px;">
+        <em style="color: #94a3b8; font-size: 0.9rem;">Select a single tweet from the map to view token weights...</em>
+    </div>
+</div>
 
         <div class="card">
             <div class="card-title">PERTURBATION CONTROLLER</div>
@@ -203,20 +263,6 @@
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-title">
-                <span>DIAGNOSTIC TOKEN HEATMAP</span>
-                <div class="legend-box">
-                    SEMANTIC SHIFT:<br>
-                    <div class="gradient-bar"></div><br>
-                    Red=High, White=Low
-                </div>
-            </div>
-            <div id="heatmap-container" style="min-height: 150px; text-align: center; color: #64748b; font-size: 0.96rem; margin-top: 20px;">
-                <em>Select a single tweet to view heatmap.</em>
-            </div>
-        </div>
-
         <div class="card" id="tfidf-panel">
             <div class="card-title">
                 <span>CLUSTER KEYWORDS (TF-IDF)</span>
@@ -233,6 +279,25 @@
             
             <div id="tfidf-chart" style="min-height: 250px; text-align: center; color: #64748b; font-size: 0.96rem; margin-top: 20px;">
                 <em>Select a cluster to view keywords.</em>
+            </div>
+        </div>
+
+        <div class="card" id="bertopic-card">
+            <div class="card-title">TOPIC EXTRACTION (BERTopic)</div>
+            
+            <div style="display: flex; gap: 15px; margin-top: 10px;">
+                <!-- Lista dei Topic -->
+                <div style="flex: 1; border-right: 1px solid #e2e8f0; padding-right: 10px;">
+                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 5px;">Select a Topic:</div>
+                    <select id="topic-selector" size="5" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; outline: none; cursor: pointer;">
+                        <!-- Verrà popolato da Javascript -->
+                    </select>
+                </div>
+                
+                <!-- Il grafico D3 per le parole del Topic -->
+                <div id="topic-barchart" style="flex: 1; min-height: 120px;">
+                    <em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see keywords...</em>
+                </div>
             </div>
         </div>
 
@@ -268,6 +333,8 @@
                 <button id="btn-reset-filters" style="width: 100%; margin-top: 10px; font-size: 0.82rem; border: none; background: transparent; text-decoration: underline; cursor: pointer; color: #475569;">Reset Filters</button>
             </div>
         </div>
+
+       
 
        
     </div>
