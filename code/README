@@ -23,21 +23,21 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 
 
 ## sistema
-1. Aggiungere legenda sentiment (neg, pos, neutro)/airline (compagnia) che cambia a seconda di quello selezionato
-2. Il reset dello zoom deve vedersi che è selezionabile solo se abbiamo cambiato la visualizzazione inziale
-3. Creare varie modalità di interazione con la mappa con dei pulsanti tipo: sposta (4 frecce) / 
-  seleziona (1 / più tweet ritaglio) come in basso a destra nel mockup
-4. Nella heatmap capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
-5. Far visualizzare un contatore che mostra quanti tweet ci sono, quanti per ogni compagnia ecc..
-6. Nella perturbazione del rumore potremmo aggiungere molte più parole casuali (non solo 1) per vedere se c'è un effetto cumulativo
-8. La sezione perturbazione potrebbe essere più inuitiva 
-9. Se il filtro rimuove il tweet che stiamo visualizzando, allora togliamolo dalla viusalizzazione
-10. Controllare che tutte le visualizzazioni siano coordinate
-11. Cercare un dizionario con più sinonimi/contrari per aumentare la copertura della perturbazione
-12. Capire se ha senso tenere le keyword per i topic, forse no. E Dare dei nomi più intuitivi ai topic (es. "Topic 1" -> "Customer Service Issues")
-13. Aggiungere lo switch che suggeriva il prof: bottone switch che cambia la modalità di selezione da "point-based" a "cluster-based" 
-   Dettagli del prof: 
-   un bottone switch che cambia la modalità di selezione da "point-based" a "cluster-based". Se sono in "point-based" il click su un punto seleziona quel punto, 
-   se clicco, lo tolgo. Se sono in "cluster-based" il click su un punto va a selezionare tutti i punti dello stesso cluster. Stessa cosa per il brush: 
-   se il brush seleziona alcuni punti, in automatico il sistema seleziona tutti i punti degli stessi cluster dei punti selezionati tramite brush. 
-   Per semplificare ulteriormente, si potrebbe mettere un altro swith che permette di scegliere il metodo di selezione "click" o "brush".
+
+## sistema
+1. Far in modo che la legenda non stia sulla scatterplot (metterla a destra centro) e sistemarla per i topic che è troppo lunga
+2. Fare in modo che quando siamo in cluster based la visualizzazione è "statica" quindi fa vedere solo il grafico a barre verticali per quella specifica clusterizzazione (sentiment o airline o topic) . Invece quanod siamo in point based la visualizzazione a barre verticali a barre verticali può essere slezionata per sentiment, airline, topic
+3. Nella heatmap capire gli assi se ha senso la misura indicata (cosa rappresentano quelle coordinate)
+4. Far visualizzare un contatore che mostra quanti tweet ci sono in totale
+5. Tf-idf forse togliere delle parole?
+6. Quando siamo in click-based e point based tenere solo le sezioni (selection details, token analysis e perturbation), invece quando siamo in cluster-based rimuovere la sezione heatmap e perturbation
+7. Se faccio una selezione con click o brush e poi ne faccio una nuova la mappa deve resettarsi cioè scordarsi della selezione precedente 
+8. Decidere se tenere il filtro
+9. Controllare che tutte le visualizzazioni siano coordinate
+10. Nella perturbazione del rumore potremmo aggiungere molte più parole casuali (non solo 1) per vedere se c'è un effetto cumulativo
+11. La sezione perturbazione potrebbe essere più inuitiva (magari unire la sezione perturbazione con la heatmap)
+12. Cercare un dizionario con più sinonimi/contrari per aumentare la copertura della perturbazione
+13. Per le perturbazioni vedere meglio il coloramento delle frecce, la grandezza. Quando faccio più perturbazioni ogni volta che clicco sulla perturbazione che ho già fatto dovrebbe evidenziarmela
+14. Capire se ha senso tenere le keyword per i topic, forse no. E Dare dei nomi più intuitivi ai topic (es. "Topic 1" -> "Customer Service Issues")
+15. Capire meglio come disporre le varie cose quindi se mettere qualcosa in basso o lasciare tutto a destra
+16. Controllare che i colori, unità di misura siano coerenti con la teoria del corso 
