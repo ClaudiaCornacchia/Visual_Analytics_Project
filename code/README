@@ -35,8 +35,9 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 
 
 ### BERTopic e TF-IDF
-5. Tf-idf forse togliere delle parole dal grafico a barre?
-14. Capire se ha senso tenere le keyword per i topic, forse no. E Dare dei nomi più intuitivi ai topic (es. "Topic 1" -> "Customer Service Issues")
+6. Tf-idf decidere quante parole mostrare nel grafico a barre
+7. Per BERTopic fare in modo che anche le keyword siano cliccabili e quando si clicca su una keyword si evidenziano i tweet che contengono quella keyword 
+8. Quando sara decisa la versione finale dei topic salvarli in locale e decidere dei nomi piu intuitivi per i topic "manualTopicNames" (es. "Topic 1" -> "Customer Service Issues")
 
 
 ### Perturbazioni

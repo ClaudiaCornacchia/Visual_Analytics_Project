@@ -1,5 +1,5 @@
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = " https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -1765,7 +1765,7 @@ fetch(API_BASE_URL + '/api/topics', {
     allTopicsData.forEach(topic => {
         selector.append("option")
             .attr("value", topic.id)
-            .text(`${topic.label} (${topic.count} tweets)`);
+            .text(`${getTopicDisplayName(topic.id, topic.words)} (${topic.count} tweets)`);
     });
 
     // Ascolta il click
@@ -1819,7 +1819,34 @@ fetch(API_BASE_URL + '/api/topics', {
     console.error("❌ Errore durante il caricamento dei Topic:", err);
 });
 
-// 2. Disegna il grafico a barre per le parole
+// 2. Dizionario per i nomi manuali dei Topic (Explainability UX)
+const manualTopicNames = {
+    "-1": "Outliers",
+
+    "0": "Cancellations", // service, cancelled, customer, hours
+    "1": "Fleet and General Comments",                // fleets, fleek, hold
+    "2": "Website Issues",                            // website, site, check, applied
+    "3": "Cancelled Flights",                         // cancelled flight
+    "4": "Customer Service",                          // service, customer service
+    "5": "Telephone Hold Times",                      // hold, phone, hour
+    "6": "Direct Message Support",                    // finally, dmed, think
+    "7": "Companion Pass and Travel",                 // companion pass, nashville
+    "8": "Inflight Wi-Fi",                            // wifi, inflight wifi
+    "9": "Route and Results Sharing",                 // shares, results, route, country
+    "10": "Destination Dragons Promotion",            // destinationdragons, imaginedragons
+    "11": "En Route Flights (Tampa)",                 // flytpa, enroute, departs
+    "12": "Email and Information Requests",           // email, question, message
+    "13": "Corporate Complaints (CEO)"                // wall, ceo, jetblues ceo
+};
+
+// Funzione helper per ottenere il nome formattato
+function getTopicDisplayName(topicId, wordsArray = []) {
+    const manualName = manualTopicNames[topicId] || `Topic ${topicId}`;
+    
+    return manualName;
+}
+
+// 3. Disegna il grafico a barre per le parole
 function renderTopicBarchart(words) {
     const container = d3.select("#topic-barchart");
     container.html(""); // Pulisci
