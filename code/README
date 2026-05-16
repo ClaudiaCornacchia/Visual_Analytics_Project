@@ -35,7 +35,7 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 
 
 ### BERTopic e TF-IDF
-6. Tf-idf decidere quante parole mostrare nel grafico a barre
+6. Sistema TF-IDF (fatto)
 7. Per BERTopic fare in modo che anche le keyword siano cliccabili e quando si clicca su una keyword si evidenziano i tweet che contengono quella keyword (fatto)
 8. Quando sara decisa la versione finale dei topic salvarli in locale e decidere dei nomi piu intuitivi per i topic salvandoli nella variabile gia esistente "manualTopicNames" (es. "Topic 1" -> "Customer Service Issues")
 

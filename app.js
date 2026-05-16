@@ -1610,6 +1610,24 @@ function updateTFIDFChart(data) {
     tfYAxisGroup.transition().duration(500).call(d3.axisLeft(tfYScale));
     tfXAxisGroup.transition().duration(500).call(d3.axisBottom(tfXScale).ticks(5));
 
+    // Gestione dell'etichetta dell'asse X (Cosa rappresenta)
+    let xAxisLabel = tfSvg.selectAll(".tfidf-x-label").data([0]);
+    xAxisLabel.enter()
+        .append("text")
+        .attr("class", "tfidf-x-label")
+        .merge(xAxisLabel)
+        .transition().duration(500)
+        .attr("x", tfInnerWidth)
+        .attr("y", tfInnerHeight + 35) // Posizionata sotto i numeri dell'asse X
+        .attr("text-anchor", "end")
+        .style("font-size", "11px")
+        .style("font-weight", "600")
+        .style("fill", "#475569")
+        .text("TF-IDF Score");
+        
+    // (Opzionale) Aggiusta il colore dei testi dell'asse X per coerenza
+    tfXAxisGroup.selectAll("text").style("fill", "#64748b");
+
     // Data Join per le barre
     const bars = tfSvg.selectAll(".tfidf-bar").data(data, d => d.word);
 

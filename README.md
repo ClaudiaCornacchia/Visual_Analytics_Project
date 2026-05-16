@@ -60,14 +60,22 @@ When using UMAP, always remember to:
 
 
 ## Visualization explanation
+### BERTopic (Global Topic Modeling)
+- **Purpose**: Extracts and labels underlying semantic clusters across the entire dataset. It uses c-TF-IDF to find the most representative words for each topic, helping users understand the broad themes (e.g., Customer Service, Cancellations) identified by the embedding model.
+- **Bidirectional interaction**: Selecting a topic from the dropdown highlights all its corresponding tweets on the scatterplot. Conversely, brushing/selecting a group of tweets on the map automatically detects and displays their dominant topic.
+Additionally, clicking a keyword within a topic's bar chart filters the highlighted map nodes, brightening only the tweets that contain that exact word. This visually demonstrates the difference between semantic clustering (the model's spatial grouping) and lexical matching (exact word occurrence).
 
-- **BERTopic**: When you cliuck on a topic all the tweets that belong to that topic will be highlighted in scatterplot. When you select a cluster in the scatterplot it is computed the dominant topic of that cluster and the corresponding topic in the BERTopic visualization will be highlighted.
+### TF-IDF 
+- **Purpose**: Identifies the most distinctive keywords for a custom user selection. Unlike BERTopic (which defines static global clusters), this dynamically calculates which words make your currently selected subset of tweets unique compared to the rest of the tweets.
+- **Dynamic generation**: Brushing or selecting more than 5 tweets on the map triggers the backend to compute and display the TF-IDF bar chart for that specific group.
+- **Bidirectional interaction**: Clicking a keyword in the TF-IDF chart instantly highlights the specific tweets containing that word on the map
 
-- **Heatmap**: When you select a tweet, the system calculates how much its semantic meaning would shift if you removed specific words.
-   - 🟥 Deep Red: High Semantic Shift. This word is a "semantic pillar" of the tweet; modifying it drastically alters the model's understanding.
-   - ⬜ White: Low/No impact on the overall meaning.   
-
-  Note: If a word lacks a direct synonym or antonym (e.g., proper nouns, stop words), the text remains unchanged. The semantic shift is exactly 0.0, and the heatmap cell will be white.
+### Word heatmap (single tweet inspection)
+- **Purpose**: Evaluates the "semantic weight" of individual words within a single selected tweet. The system calculates the embedding shift by temporarily removing each word (ablation) to see how drastically the cosine similarity changes compared to the original embedding. This reveals which words are most critical for the model's understanding of that tweet.
+- **Visual encoding**: it is used a sequential color scale (Dark Blue to Bright Yellow)
+  - 🟨 Bright Yellow: High Semantic Shift. This word is a "semantic pillar"; modifying it drastically alters the tweet's embedding vector.
+  - 🟦 Dark Blue: Low/No impact on the overall meaning.
+- **Interactions**: Clicking a colored word selects it as the target word for targeted perturbations (e.g., swapping it with a synonym, antonym, or custom word), acting as a bridge to the perturbation panel.
 
 
 ## Perturbation Types
