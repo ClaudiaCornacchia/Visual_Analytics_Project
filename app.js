@@ -41,7 +41,10 @@ const perturbationColors = {
     custom_replace: "#edef4b",
     llm_paraphrase: "#1f77b4",
     llm_opposite: "#ff7f0e",
-    noise: "#7f7f7f"
+    noise: "#7f7f7f",
+    typo: "#06b6d4",
+    shuffle: "#ec4899",
+    leetspeak: "#84cc16"
 };
 
 const keywordHighlightColor = "#facc15";
@@ -127,7 +130,7 @@ let currentSelectionChartView = "sentiment";
 let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
-const tweetBasedPerturbations = ["llm_paraphrase", "llm_opposite", "noise"];
+const tweetBasedPerturbations = ["llm_paraphrase", "llm_opposite", "noise", "typo", "shuffle", "leetspeak"];
 let brushModeActive = false;
 let perturbationResults = [];
 let activePerturbationKey = null;
@@ -140,7 +143,10 @@ const perturbationLabels = {
     dict_antonym: "Antonym",
     llm_paraphrase: "Paraphrase",
     llm_opposite: "Opposite",
-    noise: "Noise"
+    noise: "Noise",
+    typo: "Typo",
+    shuffle: "Shuffled",
+    leetspeak: "Leetspeak"
 };
 
 function getTopicLabel(topicId) {
@@ -407,6 +413,36 @@ function updateNodeColors() {
     });
 }
 
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function highlightChangedText(original, perturbed) {
+    const originalWords = original.split(/\s+/);
+    const perturbedWords = perturbed.split(/\s+/);
+    const maxLen = Math.max(originalWords.length, perturbedWords.length);
+    const highlighted = [];
+
+    for (let i = 0; i < maxLen; i++) {
+        const orig = originalWords[i] || "";
+        const pert = perturbedWords[i] || "";
+        const escaped = escapeHtml(pert);
+
+        if (orig !== pert) {
+            highlighted.push(`<span class="perturbation-diff">${escaped}</span>`);
+        } else {
+            highlighted.push(escaped);
+        }
+    }
+
+    return highlighted.join(" ");
+}
+
 function setPerturbationDisplay(result) {
     const output = document.getElementById("new-text");
     if (!result) {
@@ -415,7 +451,16 @@ function setPerturbationDisplay(result) {
     }
 
     const label = perturbationLabels[result.type] || result.type;
-    output.innerHTML = `<strong>${label}</strong>${result.nodeId ? ` · <small>Tweet ${result.nodeId}</small>` : ""}<br>${result.text}`;
+    let perturbedHtml = "";
+    
+    if (result.displayText && result.displayText !== result.text) {
+        perturbedHtml = result.displayText;
+    } else {
+        const originalText = result.originalText || result.text;
+        perturbedHtml = highlightChangedText(originalText, result.text);
+    }
+
+    output.innerHTML = `<strong>${label}</strong>${result.nodeId ? ` · <small>Tweet ${result.nodeId}</small>` : ""}<br>${perturbedHtml}`;
 }
 
 function renderPerturbationCarousel() {
@@ -451,9 +496,9 @@ function renderPerturbationCarousel() {
     setPerturbationDisplay(activeResult);
 }
 
-function storePerturbationResult(nodeId, type, text) {
+function storePerturbationResult(nodeId, type, text, originalText, displayText) {
     const key = `${nodeId}-${type}`;
-    const nextResult = { key, nodeId, type, text };
+    const nextResult = { key, nodeId, type, text, originalText, displayText }; 
     const existingIndex = perturbationResults.findIndex(result => result.key === key);
 
     if (existingIndex >= 0) {
@@ -871,6 +916,22 @@ function setBrushMode(active) {
         .style("pointer-events", active ? "all" : "none");
 }
 
+function updatePanelVisibility() {
+    const tokenPanel = document.getElementById("token-analysis-perturbation-card");
+    const tfidfPanel = document.getElementById("tfidf-panel");
+    const bertopicPanel = document.getElementById("bertopic-card");
+    
+    if (interactionMode === "click" && selectionMode === "point") {
+        if (tokenPanel) tokenPanel.style.display = "block";
+        if (tfidfPanel) tfidfPanel.style.display = "none";
+        if (bertopicPanel) bertopicPanel.style.display = "none";
+    } else {
+        if (tokenPanel) tokenPanel.style.display = "none";
+        if (tfidfPanel) tfidfPanel.style.display = "block";
+        if (bertopicPanel) bertopicPanel.style.display = "block";
+    }
+}
+
 function setInteractionMode(mode) {
     interactionMode = mode;
     setBrushMode(mode === "brush");
@@ -881,6 +942,7 @@ function setInteractionMode(mode) {
     if (selectionMode === "cluster") {
         reapplySelectionMode();
     }
+    updatePanelVisibility();
 }
 
 function setSelectionMode(mode) {
@@ -890,6 +952,7 @@ function setSelectionMode(mode) {
     }
     syncModeButtons();
     reapplySelectionMode();
+    updatePanelVisibility();
 }
 
 const zoom = d3.zoom()
@@ -1100,36 +1163,78 @@ function renderTokenAnalysis(text) {
                     "#fef9c3"  // pale yellow
                 ]));
 
-            // 2. Disegna gli span (le parole)
+            // Helper: compute relative luminance for contrast-aware inner stroke
+            function colorToLuminance(cssColor) {
+                if (!cssColor) return 1;
+                let r, g, b;
+                cssColor = cssColor.trim();
+                if (cssColor.startsWith('rgb')) {
+                    const nums = cssColor.match(/\d+/g).map(Number);
+                    [r, g, b] = nums;
+                } else if (cssColor[0] === '#') {
+                    const hex = cssColor.slice(1);
+                    if (hex.length === 3) {
+                        r = parseInt(hex[0] + hex[0], 16);
+                        g = parseInt(hex[1] + hex[1], 16);
+                        b = parseInt(hex[2] + hex[2], 16);
+                    } else {
+                        r = parseInt(hex.slice(0, 2), 16);
+                        g = parseInt(hex.slice(2, 4), 16);
+                        b = parseInt(hex.slice(4, 6), 16);
+                    }
+                } else {
+                    try {
+                        const c = d3.color(cssColor);
+                        if (c) { r = c.r; g = c.g; b = c.b; }
+                    } catch (e) {
+                        return 1;
+                    }
+                }
+
+                const srgb = [r, g, b].map(v => {
+                    const s = v / 255;
+                    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+                });
+                return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
+            }
+
+            // 2. Disegna gli span (le parole) con un 'margine interno' (inset stroke)
             data.forEach(item => {
+                const bg = colorScale(item.weight);
+                const fg = item.weight > (maxWeight * 0.5) ?  "#0f172a" : "#ffffff";
+
                 container.append("span")
                     .attr("class", "token")
-                    // Tooltip nativo al passaggio del mouse!
-                    .attr("title", `Impact Score: ${item.weight.toFixed(3)}`) 
-                    .style("background-color", colorScale(item.weight))
-                    .style("color", item.weight > (maxWeight * 0.5) ?  "#0f172a" : "#ffffff" )
-                    .text(`${item.word} `) // Nota lo spazio finale per distanziare le parole
+                    .attr("title", `Impact Score: ${item.weight.toFixed(3)}`)
+                    .style("background-color", bg)
+                    .style("color", fg)
+                    .style("padding", "0 6px")
+                    .style("border-radius", "6px")
+                    .style("margin-right", "4px")
+                    .style("box-shadow", "none")
+                    .text(`${item.word} `)
                     .on("click", function(event) {
-                        // A. Spegni eventuali altre parole selezionate ripristinando lo stile di default
+                        // reset other tokens
                         container.selectAll(".token")
-                            .style("border", "1.5px solid transparent")
-                            .style("box-shadow", "none");
-                        
-                        // B. Evidenzia QUESTA parola (Bordo nero netto, stile Heatmap)
-                        d3.select(this)
-                            .style("border", "1.5px solid #000") // Più elegante dell'outline
-                            .style("box-shadow", "0 2px 4px rgba(0,0,0,0.2)");
+                            .style("box-shadow", "none")
+                            .style("outline", "none");
 
-                        // C. Salva la parola come Target globale
+                        // choose a contrasting inner stroke color: white for dark bg, black for light bg
+                        const lum = colorToLuminance(bg);
+                        const innerColor = lum < 0.5 ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.85)';
+
+                        // apply inset stroke using box-shadow (inset) for an inner white margin
+                        d3.select(this)
+                            .style("box-shadow", `inset 0 0 0 3px ${innerColor}, 0 2px 6px rgba(0,0,0,0.12)`)
+                            .style("outline", "none");
+
+                        // save selection
                         targetWordForPerturbation = item.word.trim();
-                        
                         const displayEl = document.getElementById("target-word-display");
                         if (displayEl) displayEl.innerText = targetWordForPerturbation;
-                        
                         const infoEl = document.getElementById("target-word-info");
                         if (infoEl) infoEl.style.display = "block";
 
-                        // D. Aggiorna i bottoni
                         if (typeof updatePerturbationButtonState === "function") {
                             updatePerturbationButtonState();
                         }
@@ -1237,11 +1342,7 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 
     postJson("/api/perturb", payload)
         .then(data => {
-                // Use the new text if available, otherwise fallback to display_text or original text
-                const textToShow = data.display_text || data.new_text;
-                
-                document.getElementById("new-text").innerHTML = textToShow;
-                storePerturbationResult(node.id, perturbType, textToShow);
+                storePerturbationResult(node.id, perturbType, data.new_text, node.text, data.display_text);
 
                 const startX = xScale(node.x);
                 const startY = yScale(node.y);
@@ -1461,11 +1562,18 @@ function updateTFIDFChart(data) {
         tfYAxisGroup.selectAll("*").remove();
         tfXAxisGroup.selectAll("*").remove();
         clearKeywordHighlight();
+        
+        placeholder.style("display", "block").text("Select a tweet or more to see the keywords.");
+        document.getElementById("tfidf-chart").style.minHeight = "40px";
+        d3.select("#tfidf-chart svg").style("display", "none");
+        
         return;
     }
 
     // ABBIAMO I DATI! Nascondiamo il testo segnaposto definitivamente
     placeholder.style("display", "none");
+    document.getElementById("tfidf-chart").style.minHeight = "250px";
+    d3.select("#tfidf-chart svg").style("display", "block");
 
     // Ricalcola la larghezza dinamicamente
     if (tfContainer.clientWidth > 0) {

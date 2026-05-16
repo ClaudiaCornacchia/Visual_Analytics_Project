@@ -55,6 +55,7 @@
         .perturbation-chip { border: 1px solid #cbd5e1; background: #ffffff; color: #334155; border-radius: 999px; padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; cursor: pointer; }
         .perturbation-chip.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
         .perturbation-empty { margin-top: 10px; font-size: 0.86rem; color: #64748b; }
+        .perturbation-diff { background: rgba(251, 191, 36, 0.25); border-radius: 4px; padding: 2px 4px; }
 
         /* Controlli Mappa Overlay */
         #map-toolbar { position: absolute; top: 18px; right: 18px; display: flex; align-items: center; gap: 8px; z-index: 10; }
@@ -197,12 +198,12 @@
             </div>
         </div>
 
-        <div class="card" id="token-analysis-card">
+        <div class="card" id="token-analysis-perturbation-card">
             <div class="card-title" style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
-                    <span>TOKEN ANALYSIS HEATMAP </span>
+                    <span>TOKEN ANALYSIS & PERTURBATION</span>
                     <div style="font-size: 0.75rem; color: #64748b; font-weight: normal; margin-top: 2px;">
-                        Click a word to select it as a perturbation target
+                        Click a word in the heatmap to select it as a perturbation target
                     </div>
                 </div>
                 
@@ -215,50 +216,53 @@
                         <span>High</span>
                     </div>
                 </div>
-        </div>
+            </div>
     
-    <!-- Il contenitore con lo stile pulito che abbiamo definito -->
-    <div id="tw-text" style="line-height: 2; font-size: 1.05rem; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 6px; background: #ffffff; min-height: 80px; color: #0f172a; margin-top: 15px;">
-        <em style="color: #94a3b8; font-size: 0.9rem;">Select a single tweet from the map to view token weights...</em>
-    </div>
-</div>
+            <!-- Il contenitore con lo stile pulito che abbiamo definito -->
+            <div id="tw-text" style="line-height: 2; font-size: 1.05rem; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 6px; background: #ffffff; min-height: 80px; color: #0f172a; margin-top: 15px; margin-bottom: 15px;">
+                <em style="color: #94a3b8; font-size: 0.9rem;">Select a single tweet from the map to view token weights...</em>
+            </div>
 
-        <div class="card">
-            <div class="card-title">PERTURBATION CONTROLLER</div>
-            <div class="flex-row">
-                <div style="flex: 0.8;">
-                    <div id="target-word-info" style="font-size: 0.82rem; color: #1d4ed8; background: #dbeafe; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #bfdbfe; display: none;">
-                        Target: <strong id="target-word-display">-</strong>
-                        <span id="btn-clear-target" style="float: right; cursor: pointer; text-decoration: underline; font-size: 0.75rem;">Clear</span>
+            <!-- PERTURBATION CONTROLS -->
+            <div style="border-top: 1px solid #cbd5e1; padding-top: 15px;">
+                <div class="flex-row">
+                    <div style="flex: 0.8;">
+                        <div id="target-word-info" style="font-size: 0.82rem; color: #1d4ed8; background: #dbeafe; padding: 6px 10px; border-radius: 4px; margin-bottom: 10px; border: 1px solid #bfdbfe; display: none;">
+                            Target: <strong id="target-word-display">-</strong>
+                            <span id="btn-clear-target" style="float: right; cursor: pointer; text-decoration: underline; font-size: 0.75rem;">Clear</span>
+                        </div>
+                        <div style="font-size: 0.82rem; margin-bottom: 5px; color: #475569;">PERTURBATION TYPE</div> 
+                        <select id="perturbation-select" style="width: 100%; margin-bottom: 10px;">
+                            <optgroup label="Word-based Perturbations">
+                                <option value="dict_synonym">Synonym</option>
+                                <option value="dict_antonym">Antonym</option>
+                                <option value="dict_remove">Remove Word</option>
+                                <option value="custom_replace">Custom Replacement</option>
+                            </optgroup>
+                            <optgroup label="LLM-based Perturbations">
+                                <option value="llm_paraphrase">Paraphrase</option>
+                                <option value="llm_opposite">Opposite</option>
+                            </optgroup>
+                            <optgroup label="Noise-based Perturbations">
+                                <option value="noise">Random Noise</option>
+                                <option value="typo">Typo</option>
+                                <option value="shuffle">Shuffle Words</option>
+                                <option value="leetspeak">Leetspeak</option>
+                            </optgroup>
+                        </select>
+
+                        <input type="text" id="custom-word-input" placeholder="Enter new word..." 
+           style="width: 100%; margin-bottom: 10px; padding: 6px; border: 1px solid #94a3b8; border-radius: 4px; display: none;">
+
+                        <button id="btn-perturb" style="width: 100%; font-weight: bold;" disabled>PERTURB TWEET</button>
+                        <button id="btn-clear" style="width: 100%; margin-top: 5px; font-size: 0.82rem; border: none; background: transparent; text-decoration: underline;" disabled>Clear Map</button>
                     </div>
-                    <div style="font-size: 0.82rem; margin-bottom: 5px; color: #475569;">PERTURBATION TYPE</div> 
-                    <select id="perturbation-select" style="width: 100%; margin-bottom: 10px;">
-                        <optgroup label="Word-based Perturbations">
-                            <option value="dict_synonym">Synonym</option>
-                            <option value="dict_antonym">Antonym</option>
-                            <option value="dict_remove">Remove Word</option>
-                            <option value="custom_replace">Custom Replacement</option>
-                        </optgroup>
-                        <optgroup label="Tweet-based Perturbations">
-                            <option value="llm_paraphrase">Paraphrase</option>
-                            <option value="llm_opposite">Opposite</option>
-                            <option value="noise">Noise</option>
-                        </optgroup>
-                    </select>
-
-                    <input type="text" id="custom-word-input" placeholder="Enter new word..." 
-       style="width: 100%; margin-bottom: 10px; padding: 6px; border: 1px solid #94a3b8; border-radius: 4px; display: none;">
-
-                    <button id="btn-perturb" style="width: 100%; font-weight: bold;" disabled>PERTURB TWEET</button>
-                    <button id="btn-clear" style="width: 100%; margin-top: 5px; font-size: 0.82rem; border: none; background: transparent; text-decoration: underline;" disabled>Clear Map</button>
-                </div>
-                <div id="results-area">
-                    <strong style="color: #475569;">Perturbed text:</strong><br>
-                    <div id="new-text" class="perturbation-output" style="font-style: italic;">-</div>
-                    <div id="perturbation-carousel" class="perturbation-carousel"></div>
-                    <div id="perturbation-empty" class="perturbation-empty">No perturbations generated yet.</div>
-                    
-
+                    <div id="results-area">
+                        <strong style="color: #475569;">Perturbed text:</strong><br>
+                        <div id="new-text" class="perturbation-output" style="font-style: italic;">-</div>
+                        <div id="perturbation-carousel" class="perturbation-carousel"></div>
+                        <div id="perturbation-empty" class="perturbation-empty">No perturbations generated yet.</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -277,8 +281,8 @@
                 <em>Calculating semantic weights...</em>
             </div>
             
-            <div id="tfidf-chart" style="min-height: 250px; text-align: center; color: #64748b; font-size: 0.96rem; margin-top: 20px;">
-                <em>Select a cluster to view keywords.</em>
+            <div id="tfidf-chart" style="min-height: 40px; text-align: center; color: #64748b; font-size: 0.96rem; margin-top: 20px;">
+                <em>Select a tweet or more to see the keywords.</em>
             </div>
         </div>
 

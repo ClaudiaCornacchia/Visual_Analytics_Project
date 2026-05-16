@@ -28,9 +28,9 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 
 ### Legenda e bottoni di selezione
 1. Far in modo che la legenda non stia sulla scatterplot (metterla a destra centro) e sistemarla per i topic che è troppo lunga
-2. Fare in modo che quando siamo in "cluster based" la visualizzazione è "statica" quindi fa vedere solo il grafico a barre verticali per quella specifica clusterizzazione (sentiment o airline o topic) . Invece quando siamo in "point based" la visualizzazione  a barre verticali può essere slezionata per sentiment, airline, topic
+2. Fare in modo che quando siamo in "cluster based" la visualizzazione è "statica" quindi fa vedere solo il grafico a barre verticali per quella specifica clusterizzazione (sentiment o airline o topic) . Invece quando siamo in "point based" la visualizzazione  a barre verticali può essere slezionata per sentiment, airline, topic (dovrebbe cambiare in base al bottone che seleziona il tipo di visualizzazione dello scatterplot (?))
 3. Far visualizzare un contatore che mostra quanti tweet ci sono in totale
-4. Quando siamo in "click-based" e "point based" tenere solo le sezioni (selection details, token analysis e perturbation), invece quando siamo in "cluster-based" rimuovere la sezione heatmap e perturbation
+4. fare in modo che in interazione click e mode point la visualizzazione di topic airline e sentiment non sia divisa per bottone ma visubile insieme (tanto per un tweet è solo un elemento per categoria), 
 5. Se faccio una selezione con click o brush e poi ne faccio una nuova la mappa deve resettarsi cioè scordarsi della selezione precedente 
 
 
@@ -40,11 +40,14 @@ Ogni tweet è una linea che attraversa gli assi, e l'altezza sull'asse indica la
 
 
 ### Perturbazioni
-6. Nella perturbazione del rumore potremmo aggiungere molte più parole casuali (non solo 1) per vedere se c'è un effetto cumulativo
-7. La sezione perturbazione potrebbe essere più inuitiva (magari unire la sezione perturbazione con la heatmap)
+6. Nella perturbazione del rumore potremmo aggiungere molte più parole casuali (non solo 1) per vedere se c'è un effetto cumulativo (fatto)
+7. La sezione perturbazione potrebbe essere più inuitiva (magari unire la sezione perturbazione con la heatmap) (fatto)
 8. Cercare un dizionario con più sinonimi/contrari per aumentare la copertura della perturbazione
 9. Per le perturbazioni vedere meglio il coloramento delle frecce, la grandezza.
 10. Quando faccio più perturbazioni ogni volta che clicco sulla perturbazione che ho già fatto dovrebbe evidenziarmela
+11. gestire multiple perturbazioni dello stesso tipo sullo stesso tweet
+12. correggere evidenziazione parole cambiete nel tweet
+13. Quando siamo in "click-based" e "point based" tenere solo le sezioni (selection details, token analysis e perturbation), invece quando siamo in "cluster-based" rimuovere la sezione heatmap e perturbation (fatto)
 
 
 ### Decisioni/check
