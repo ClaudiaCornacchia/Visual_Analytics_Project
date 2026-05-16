@@ -64,8 +64,8 @@ const keywordHighlightColor = "#facc15";
 
 const mapContainer = document.getElementById("scatterplot-container");
 const rect = mapContainer.getBoundingClientRect();
-const width = rect.width;
-const height = rect.height;
+let width = rect.width;
+let height = rect.height;
 
 const svg = d3.select("#map")
     .attr("width", width)
@@ -1543,6 +1543,7 @@ const tfYAxisGroup = tfSvg.append("g").attr("class", "y-axis");
 const tfXAxisGroup = tfSvg.append("g").attr("transform", `translate(0,${tfInnerHeight})`).attr("class", "x-axis");
 
 let activeKeyword = null; // Memorizza la parola attualmente cliccata
+let currentTfidfData = null;
 
 function clearKeywordHighlight() {
     activeKeyword = null;
@@ -1560,6 +1561,7 @@ function clearKeywordHighlight() {
 
 // 2. Funzione per Disegnare e Aggiornare il Grafico
 function updateTFIDFChart(data) {
+    currentTfidfData = data;
     const placeholder = d3.select("#tfidf-chart em");
 
     // 1. Normalizza i dati provenienti dal backend
@@ -1740,6 +1742,7 @@ document.getElementById("btn-reset-filters").addEventListener("click", () => {
 let allTopicsData = [];
 let activeTopicSelectionId = null;
 let topicSelectorValueBeforeClick = null;
+let currentTopicWords = null;
 
 function clearTopicSelection() {
     activeTopicSelectionId = null;
@@ -1867,6 +1870,8 @@ function getTopicDisplayName(topicId, wordsArray = []) {
 let selectedWordFilter = null;
 
 function renderTopicBarchart(words) {
+    currentTopicWords = words;
+
     const container = d3.select("#topic-barchart");
     container.html(""); // Pulisci il container
 
@@ -1877,7 +1882,7 @@ function renderTopicBarchart(words) {
     }
     
     // Dimensioni regolate per ospitare formalmente l'asse X in basso
-    const width = document.getElementById("topic-barchart").clientWidth;
+    const width = Math.max(document.getElementById("topic-barchart").clientWidth, 200);
     const height = 160;
     const margin = {top: 15, right: 20, bottom: 35, left: 75}; // Left aumentato per parole lunghe
 
@@ -2023,3 +2028,63 @@ function updateTopicFromMapSelection(brushedNodes) {
     }
     updateBertopicSelectionSummary(brushedNodes);
 }
+
+// Aggiunta del listener per il resize della finestra, in modo da rendere la dashboard responsive
+window.addEventListener("resize", () => {
+    // 1. Aggiorna le dimensioni della mappa principale
+    const rect = mapContainer.getBoundingClientRect();
+    width = rect.width;
+    height = rect.height;
+
+    svg.attr("width", width).attr("height", height);
+
+    if (allNodesData && allNodesData.length > 0) {
+        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+        
+        // Aggiorna il range delle scale
+        xScale.range([margin.left, width - margin.right]);
+        yScale.range([height - margin.bottom, margin.top]);
+
+        // Aggiorna l'area del pennello (brush) per coprire il nuovo spazio
+        brush.extent([[0, 0], [width, height]]);
+        brushLayer.call(brush);
+
+        // Riposiziona i nodi base della mappa
+        nodeLayer.selectAll("circle.node")
+            .attr("cx", d => xScale(d.x))
+            .attr("cy", d => yScale(d.y));
+            
+        // Elimina i collegamenti temporanei per evitare un offset visivo
+        linkLayer.selectAll("*").remove();
+
+        // Ricalcola gli assi considerando lo zoom corrente
+        const currentTransform = d3.zoomTransform(svg.node());
+        xAxisGroup.attr("transform", `translate(0,${height - margin.bottom})`)
+            .call(d3.axisBottom(currentTransform.rescaleX(xScale)).ticks(axisTickCount));
+        yAxisGroup.attr("transform", `translate(${margin.left},0)`)
+            .call(d3.axisLeft(currentTransform.rescaleY(yScale)).ticks(axisTickCount));
+
+        // Aggiorna la posizione delle etichette degli assi "UMAP 1" e "UMAP 2"
+        svg.selectAll(".axis-label").each(function() {
+            const isYAxis = d3.select(this).attr("transform") === "rotate(-90)";
+            if (isYAxis) {
+                d3.select(this).attr("x", -height / 2);
+            } else {
+                d3.select(this).attr("x", width / 2).attr("y", height - 10);
+            }
+        });
+    }
+
+    // 2. Ridimensiona i grafici nel pannello dei dettagli
+    if (selectedNodesData && selectedNodesData.length > 0) {
+        renderSelectionDistributionChart(selectedNodesData);
+    }
+    
+    if (currentTfidfData) {
+        updateTFIDFChart(currentTfidfData);
+    }
+    
+    if (currentTopicWords) {
+        renderTopicBarchart(currentTopicWords);
+    }
+});
