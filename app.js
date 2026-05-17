@@ -1,5 +1,5 @@
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = " https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -27,11 +27,24 @@ const sentimentColors = {
     neutral: "#94a3b8"
 };
 
-const topicLabelMap = {
-    0: "Baggage Issues",
-    1: "Flight Delays",
-    2: "Customer Service"
-    // Add the rest of your BERTopic labels here, up to topic 14.
+// Dizionario per i nomi manuali dei Topic 
+const manualTopicNames = {
+    "-1": "Outliers",
+
+    "0": "Cancellations", // service, cancelled, customer, hours
+    "1": "Fleet",                // fleets, fleek, hold
+    "2": "Website Issues",                            // website, site, check, applied
+    "3": "Cancelled Flights",                         // cancelled flight
+    "4": "Customer Service",                          // service, customer service
+    "5": "Telephone hold",                      // hold, phone, hour
+    "6": "Customer care",                    // finally, dmed, think
+    "7": "Companion Pass and Travel",                 // companion pass, nashville
+    "8": "Inflight Wi-Fi",                            // wifi, inflight wifi
+    "9": "Route and Results Sharing",                 // shares, results, route, country
+    "10": "Destination Dragons Promotion",            // destinationdragons, imaginedragons
+    "11": "En Route Flights ",                 // flytpa, enroute, departs
+    "12": "Email ",           // email, question, message
+    "13": "CEO"                // wall, ceo, jetblues ceo
 };
 
 const perturbationColors = {
@@ -51,8 +64,8 @@ const keywordHighlightColor = "#facc15";
 
 const mapContainer = document.getElementById("scatterplot-container");
 const rect = mapContainer.getBoundingClientRect();
-const width = rect.width;
-const height = rect.height;
+let width = rect.width;
+let height = rect.height;
 
 const svg = d3.select("#map")
     .attr("width", width)
@@ -150,7 +163,7 @@ const perturbationLabels = {
 };
 
 function getTopicLabel(topicId) {
-    return topicId === -1 ? "Outlier" : (topicLabelMap[topicId] || `Topic ${topicId}`);
+    return topicId === -1 ? "Outlier" : (manualTopicNames[topicId] || `Topic ${topicId}`);
 }
 
 function normalizeTopicId(value) {
@@ -1530,6 +1543,7 @@ const tfYAxisGroup = tfSvg.append("g").attr("class", "y-axis");
 const tfXAxisGroup = tfSvg.append("g").attr("transform", `translate(0,${tfInnerHeight})`).attr("class", "x-axis");
 
 let activeKeyword = null; // Memorizza la parola attualmente cliccata
+let currentTfidfData = null;
 
 function clearKeywordHighlight() {
     activeKeyword = null;
@@ -1547,6 +1561,7 @@ function clearKeywordHighlight() {
 
 // 2. Funzione per Disegnare e Aggiornare il Grafico
 function updateTFIDFChart(data) {
+    currentTfidfData = data;
     const placeholder = d3.select("#tfidf-chart em");
 
     // 1. Normalizza i dati provenienti dal backend
@@ -1596,6 +1611,24 @@ function updateTFIDFChart(data) {
     // Animazione assi
     tfYAxisGroup.transition().duration(500).call(d3.axisLeft(tfYScale));
     tfXAxisGroup.transition().duration(500).call(d3.axisBottom(tfXScale).ticks(5));
+
+    // Gestione dell'etichetta dell'asse X (Cosa rappresenta)
+    let xAxisLabel = tfSvg.selectAll(".tfidf-x-label").data([0]);
+    xAxisLabel.enter()
+        .append("text")
+        .attr("class", "tfidf-x-label")
+        .merge(xAxisLabel)
+        .transition().duration(500)
+        .attr("x", tfInnerWidth)
+        .attr("y", tfInnerHeight + 35) // Posizionata sotto i numeri dell'asse X
+        .attr("text-anchor", "end")
+        .style("font-size", "11px")
+        .style("font-weight", "600")
+        .style("fill", "#475569")
+        .text("TF-IDF Score");
+        
+    // (Opzionale) Aggiusta il colore dei testi dell'asse X per coerenza
+    tfXAxisGroup.selectAll("text").style("fill", "#64748b");
 
     // Data Join per le barre
     const bars = tfSvg.selectAll(".tfidf-bar").data(data, d => d.word);
@@ -1709,6 +1742,7 @@ document.getElementById("btn-reset-filters").addEventListener("click", () => {
 let allTopicsData = [];
 let activeTopicSelectionId = null;
 let topicSelectorValueBeforeClick = null;
+let currentTopicWords = null;
 
 function clearTopicSelection() {
     activeTopicSelectionId = null;
@@ -1726,6 +1760,7 @@ function clearTopicSelection() {
 }
 
 function applyTopicSelection(selectedId) {
+    selectedWordFilter = null;
     const topicData = allTopicsData.find(t => t.id === selectedId);
     if (!topicData) return;
 
@@ -1765,7 +1800,7 @@ fetch(API_BASE_URL + '/api/topics', {
     allTopicsData.forEach(topic => {
         selector.append("option")
             .attr("value", topic.id)
-            .text(`${topic.label} (${topic.count} tweets)`);
+            .text(`${getTopicDisplayName(topic.id, topic.words)} (${topic.count} tweets)`);
     });
 
     // Ascolta il click
@@ -1819,20 +1854,37 @@ fetch(API_BASE_URL + '/api/topics', {
     console.error("❌ Errore durante il caricamento dei Topic:", err);
 });
 
-// 2. Disegna il grafico a barre per le parole
+
+
+// 2. Funzione helper per ottenere il nome formattato
+function getTopicDisplayName(topicId, wordsArray = []) {
+    const manualName = manualTopicNames[topicId] || `Topic ${topicId}`;
+    
+    return manualName;
+}
+
+// 3. Disegna il grafico a barre per le parole
+
+
+// Variabile globale per tracciare la parola eventualmente selezionata nel barchart
+let selectedWordFilter = null;
+
 function renderTopicBarchart(words) {
+    currentTopicWords = words;
+
     const container = d3.select("#topic-barchart");
-    container.html(""); // Pulisci
+    container.html(""); // Pulisci il container
 
     if (!words || !words.length) {
-        container.html('<em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see keywords...</em>');
+        container.html('<em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see the keywords.</em>');
+        selectedWordFilter = null; // Resetta il filtro se cambia o scompare il topic
         return;
     }
     
-    // Dimensioni
-    const width = document.getElementById("topic-barchart").clientWidth;
-    const height = 120;
-    const margin = {top: 10, right: 10, bottom: 20, left: 60};
+    // Dimensioni regolate per ospitare formalmente l'asse X in basso
+    const width = Math.max(document.getElementById("topic-barchart").clientWidth, 200);
+    const height = 160;
+    const margin = {top: 15, right: 20, bottom: 35, left: 75}; // Left aumentato per parole lunghe
 
     const svg = container.append("svg")
         .attr("width", width)
@@ -1840,27 +1892,53 @@ function renderTopicBarchart(words) {
 
     // Scale
     const x = d3.scaleLinear()
-        .domain([0, d3.max(words, d => d.weight)])
+        .domain([0, d3.max(words, d => d.weight) * 1.05]) // 5% di spazio extra a destra per estetica
         .range([margin.left, width - margin.right]);
 
     const y = d3.scaleBand()
         .domain(words.map(d => d.word))
         .range([margin.top, height - margin.bottom])
-        .padding(0.2);
+        .padding(0.25); // Padding ottimale per le barre
 
-    // Asse Y (Le parole)
+    // 1. Asse X (I pesi numerici c-TF-IDF)
+    svg.append("g")
+        svg.append("g")
+        .attr("transform", `translate(0, ${height - margin.bottom})`)
+        // .ticks(4) riduce i punti di campionamento per non affollare l'asse
+        // .tickFormat(d3.format(".3f")) forza la visualizzazione pulita a 3 decimali (es. 0.005)
+        .call(d3.axisBottom(x).ticks(4).tickFormat(d3.format(".3f"))) 
+        .selectAll("text")
+        .style("font-size", "11px")     
+        .style("fill", "#475569")        // Colore molto più scuro e leggibile
+        .style("font-weight", "500");
+
+    // Scuriamo anche la linea fisica dell'asse X e i suoi trattini
+    svg.selectAll(".x-axis path, .x-axis line").attr("stroke", "#94a3b8");
+
+    // Etichetta dell'asse X (opzionale, dà un tocco molto accademico)
+    svg.append("text")
+        .attr("x", width - margin.right)
+        .attr("y", height - 8)         
+        .attr("text-anchor", "end")
+        .style("font-size", "11px")      
+        .style("font-weight", "600")    
+        .style("fill", "#334155")        // Grigio scuro ad alto contrasto
+        .text("c-TF-IDF score");
+
+    // 2. Asse Y (Le parole chiave del topic)
     svg.append("g")
         .attr("transform", `translate(${margin.left},0)`)
-        .call(d3.axisLeft(y).tickSize(0))
+        .call(d3.axisLeft(y).tickSize(0)) 
         .selectAll("text")
-        .style("font-size", "11px")
-        .style("fill", "#334155");
+        .style("font-size", "12px")      
+        .style("font-weight", "500")
+        .style("fill", "#1e293b");      
 
-    // Rimuovi la linea dell'asse per un look più pulito
-    svg.selectAll(".domain").remove();
+    // Rimuovi la linea verticale dell'asse Y per un look moderno ed elegante
+    svg.select(".domain").remove();
 
-    // Barre orizzontali
-    svg.selectAll("rect")
+    // 3. Disegno delle Barre Orizzontali con Interazione
+    const bars = svg.selectAll("rect")
         .data(words)
         .enter()
         .append("rect")
@@ -1868,8 +1946,69 @@ function renderTopicBarchart(words) {
         .attr("y", d => y(d.word))
         .attr("width", d => x(d.weight) - margin.left)
         .attr("height", y.bandwidth())
-        .attr("fill", "#3b82f6") // Blu accattivante
-        .attr("border-radius", "4px");
+        .attr("cursor", "pointer") // Indica visivamente che la barra è cliccabile
+        .attr("fill", d => (selectedWordFilter === d.word) ? "#1d4ed8" : "#3b82f6") // Colore diverso se già attiva
+        .attr("rx", 3); // Angoli leggermente smussati (sostituisce il non-standard border-radius)
+
+    // 4. Gestione Eventi di Interazione (Click)
+    bars.on("click", function(event, d) {
+        // Se ri-clicco sulla stessa parola, disattivo il filtro (Toggle)
+        if (selectedWordFilter === d.word) {
+            selectedWordFilter = null;
+        } else {
+            selectedWordFilter = d.word;
+        }
+
+        // Aggiorna visivamente i colori delle barre nel grafico
+        bars.attr("fill", b => (selectedWordFilter === b.word) ? "#1d4ed8" : "#94a3b8"); // Ingrigisci le altre, evidenzia la attiva
+        
+        if (selectedWordFilter === null) {
+            // Se nessun filtro è attivo, rimetti il colore blu standard a tutte
+            bars.attr("fill", "#3b82f6");
+        }
+
+        // Chiama la funzione per evidenziare i tweet sulla mappa/scatterplot
+        highlightTweetsByWord(selectedWordFilter);
+    });
+}
+
+function highlightTweetsByWord(word) {
+    const dots = d3.selectAll("circle.node"); 
+
+    if (!word) {
+        // RESET: Se l'utente clicca di nuovo sulla barra per disattivarla.
+        // Ripristiniamo la mappa mostrando solo i tweet del topic selezionato.
+        dots.transition().duration(300)
+            .style("opacity", d => d.topic_id === activeTopicSelectionId ? 1.0 : 0.05)
+            .style("stroke", d => d.topic_id === activeTopicSelectionId ? "#000" : "none")
+            .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? 1.5 : 0);
+        return;
+    }
+
+    // FILTRO ATTIVO: L'utente ha cliccato su una parola
+    const lowerWord = word.toLowerCase();
+    
+    dots.transition().duration(300)
+        .style("opacity", d => {
+            // 1. Se il tweet non fa parte del topic attivo, resta invisibile (0.05)
+            if (d.topic_id !== activeTopicSelectionId) return 0.05; 
+            
+            // 2. Verifica se il testo del tweet contiene fisicamente la parola
+            const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
+            
+            // 3. Se la contiene = Massima visibilità (1.0). Se non la contiene = Sbiadito (0.2)
+            return textContainsWord ? 1.0 : 0.2; 
+        })
+        .style("stroke", d => {
+            if (d.topic_id !== activeTopicSelectionId) return "none";
+            const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
+            return textContainsWord ? "#000" : "none"; // Bordo nero solo ai match esatti
+        })
+        .style("stroke-width", d => {
+            if (d.topic_id !== activeTopicSelectionId) return 0;
+            const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
+            return textContainsWord ? 2 : 0; 
+        });
 }
 
 const topicDistributionTooltip = d3.select("body")
@@ -1889,3 +2028,63 @@ function updateTopicFromMapSelection(brushedNodes) {
     }
     updateBertopicSelectionSummary(brushedNodes);
 }
+
+// Aggiunta del listener per il resize della finestra, in modo da rendere la dashboard responsive
+window.addEventListener("resize", () => {
+    // 1. Aggiorna le dimensioni della mappa principale
+    const rect = mapContainer.getBoundingClientRect();
+    width = rect.width;
+    height = rect.height;
+
+    svg.attr("width", width).attr("height", height);
+
+    if (allNodesData && allNodesData.length > 0) {
+        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+        
+        // Aggiorna il range delle scale
+        xScale.range([margin.left, width - margin.right]);
+        yScale.range([height - margin.bottom, margin.top]);
+
+        // Aggiorna l'area del pennello (brush) per coprire il nuovo spazio
+        brush.extent([[0, 0], [width, height]]);
+        brushLayer.call(brush);
+
+        // Riposiziona i nodi base della mappa
+        nodeLayer.selectAll("circle.node")
+            .attr("cx", d => xScale(d.x))
+            .attr("cy", d => yScale(d.y));
+            
+        // Elimina i collegamenti temporanei per evitare un offset visivo
+        linkLayer.selectAll("*").remove();
+
+        // Ricalcola gli assi considerando lo zoom corrente
+        const currentTransform = d3.zoomTransform(svg.node());
+        xAxisGroup.attr("transform", `translate(0,${height - margin.bottom})`)
+            .call(d3.axisBottom(currentTransform.rescaleX(xScale)).ticks(axisTickCount));
+        yAxisGroup.attr("transform", `translate(${margin.left},0)`)
+            .call(d3.axisLeft(currentTransform.rescaleY(yScale)).ticks(axisTickCount));
+
+        // Aggiorna la posizione delle etichette degli assi "UMAP 1" e "UMAP 2"
+        svg.selectAll(".axis-label").each(function() {
+            const isYAxis = d3.select(this).attr("transform") === "rotate(-90)";
+            if (isYAxis) {
+                d3.select(this).attr("x", -height / 2);
+            } else {
+                d3.select(this).attr("x", width / 2).attr("y", height - 10);
+            }
+        });
+    }
+
+    // 2. Ridimensiona i grafici nel pannello dei dettagli
+    if (selectedNodesData && selectedNodesData.length > 0) {
+        renderSelectionDistributionChart(selectedNodesData);
+    }
+    
+    if (currentTfidfData) {
+        updateTFIDFChart(currentTfidfData);
+    }
+    
+    if (currentTopicWords) {
+        renderTopicBarchart(currentTopicWords);
+    }
+});
