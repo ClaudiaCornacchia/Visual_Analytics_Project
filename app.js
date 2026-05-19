@@ -62,7 +62,7 @@ const perturbationColors = {
 
 const keywordHighlightColor = "#facc15";
 
-const mapContainer = document.getElementById("scatterplot-container");
+const mapContainer = document.getElementById("map-panel");
 const rect = mapContainer.getBoundingClientRect();
 let width = rect.width;
 let height = rect.height;
@@ -156,7 +156,6 @@ let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
 let interactionMode = "click";
 let selectionMode = "point";
-let currentSelectionChartView = "sentiment";
 let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
@@ -173,6 +172,7 @@ const normalNodeStrokeColor = "rgba(15, 23, 42, 0.38)";
 const normalNodeStrokeWidth = 0.45;
 const selectedNodeStrokeColor = "#111827";
 const selectedNodeStrokeWidth = 1.15;
+const mapMargin = { top: 26, right: 34, bottom: 86, left: 72 };
 const axisTickCount = 8;
 const perturbationLabels = {
     dict_synonym: "Synonym",
@@ -251,9 +251,8 @@ function getDominantTopicId(nodes) {
     return dominantTopicId;
 }
 
-function getClusterKey(node, mode = interactionMode) {
-    const encoding = mode === "brush" ? currentSelectionChartView : currentColorEncoding;
-    switch (encoding) {
+function getClusterKey(node) {
+    switch (currentColorEncoding) {
         case "sentiment":
             return node.sentiment;
         case "airline":
@@ -279,7 +278,7 @@ function getDominantClusterKey(nodes) {
     const keyCounts = new Map();
 
     nodes.forEach(node => {
-        const key = getClusterKey(node, interactionMode);
+        const key = getClusterKey(node);
         if (key === -1 || key === undefined || key === null) return;
         keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
     });
@@ -303,12 +302,12 @@ function resolveClickSelectionMode(nodes, originalNode = null) {
     }
 
     const nodeToUse = originalNode || uniqueNodes[0];
-    const selectedKey = getClusterKey(nodeToUse, "click");
+    const selectedKey = getClusterKey(nodeToUse);
     if (selectedKey === -1 || selectedKey === undefined || selectedKey === null) {
         return uniqueNodes;
     }
 
-    return allNodesData.filter(node => getClusterKey(node, "click") === selectedKey);
+    return allNodesData.filter(node => getClusterKey(node) === selectedKey);
 }
 
 function resolveBrushSelectionMode(nodes) {
@@ -322,7 +321,7 @@ function resolveBrushSelectionMode(nodes) {
         return uniqueNodes;
     }
 
-    return allNodesData.filter(node => getClusterKey(node, "brush") === dominantKey);
+    return allNodesData.filter(node => getClusterKey(node) === dominantKey);
 }
 
 function resolveSelectionForCurrentMode(nodes, originalNode = null) {
@@ -725,6 +724,34 @@ function renderClusterVerticalBarChart(container, nodes) {
         .text(([, count]) => count);
 }
 
+function renderBrushClusterSummary(container, nodes) {
+    const configs = getSelectionDistributionConfigs(nodes);
+    const config = configs[currentColorEncoding] || configs.sentiment;
+    const clusterKey = getClusterKey(nodes[0]);
+    const label = config.labelAccessor(clusterKey);
+    const color = config.colorAccessor(clusterKey);
+    const typeLabel = currentColorEncoding === "airline"
+        ? "Airline"
+        : (currentColorEncoding === "topic" ? "Topic" : "Sentiment");
+
+    const summary = document.createElement("div");
+    summary.style.cssText = "display: flex; align-items: center; gap: 12px; padding: 10px 0; color: #334155;";
+
+    const swatch = document.createElement("span");
+    swatch.style.cssText = `width: 14px; height: 14px; border-radius: 50%; background: ${color}; border: 1px solid rgba(15,23,42,0.35); flex-shrink: 0;`;
+
+    const text = document.createElement("div");
+    text.style.cssText = "display: grid; gap: 2px; font-size: 0.9rem;";
+    text.innerHTML = `
+        <strong>${typeLabel}: ${label}</strong>
+        <span>${nodes.length} tweet${nodes.length === 1 ? "" : "s"} total</span>
+    `;
+
+    summary.appendChild(swatch);
+    summary.appendChild(text);
+    container.node().appendChild(summary);
+}
+
 function renderSelectionDistributionChart(nodes) {
     const container = d3.select("#selection-distribution-chart");
     container.html("");
@@ -741,41 +768,12 @@ function renderSelectionDistributionChart(nodes) {
 
     if (selectionMode === "cluster") {
         if (interactionMode === "brush") {
-            renderClusterVerticalBarChart(container, nodes);
+            renderBrushClusterSummary(container, nodes);
         }
         return;
     }
 
-    Object.values(getSelectionDistributionConfigs(nodes)).forEach(config => {
-        const section = document.createElement("div");
-        section.style.cssText = "margin-bottom: 14px;";
-
-        const titleDiv = document.createElement("div");
-        titleDiv.style.cssText = "font-size: 0.85rem; font-weight: 700; color: #334155; margin-bottom: 8px; text-transform: uppercase;";
-        titleDiv.innerText = `SELECTED ${config.title.toUpperCase()}`;
-        section.appendChild(titleDiv);
-
-        const legendDiv = document.createElement("div");
-        legendDiv.style.cssText = "display: flex; flex-direction: column; gap: 8px;";
-
-        config.data.forEach(([key, count]) => {
-            const itemDiv = document.createElement("div");
-            itemDiv.style.cssText = "display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: #334155;";
-
-            const swatch = document.createElement("div");
-            swatch.style.cssText = `width: 12px; height: 12px; border-radius: 50%; background-color: ${config.colorAccessor(key)}; flex-shrink: 0;`;
-
-            const label = document.createElement("span");
-            label.innerText = `${config.labelAccessor(key)} (${count})`;
-
-            itemDiv.appendChild(swatch);
-            itemDiv.appendChild(label);
-            legendDiv.appendChild(itemDiv);
-        });
-
-        section.appendChild(legendDiv);
-        container.node().appendChild(section);
-    });
+    container.html("");
 }
 
 function renderMapLegends(nodes = []) {
@@ -813,7 +811,7 @@ function renderMapLegends(nodes = []) {
         return `
         <div class="map-legend-item">
             <span class="map-legend-swatch" style="background:${color};"></span>
-            <span>${displayLabel}${count !== null ? ` (${count})` : ""}</span>
+            <span>${displayLabel}</span>
         </div>
         `;
     }).join("");
@@ -1139,7 +1137,7 @@ d3.csv("base_map.csv", function (d) {
 }).then(function (data) {
     allNodesData = data;
 
-    const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+    const margin = mapMargin;
     const xExtent = d3.extent(data, d => d.x);
     const yExtent = d3.extent(data, d => d.y);
     const xPad = (xExtent[1] - xExtent[0]) * 0.05;
@@ -1190,13 +1188,13 @@ d3.csv("base_map.csv", function (d) {
     svg.append("text")
         .attr("class", "axis-label")
         .attr("x", width / 2)
-        .attr("y", height - 10)
+        .attr("y", height - 28)
         .text("UMAP 1");
 
     svg.append("text")
         .attr("class", "axis-label")
         .attr("transform", "rotate(-90)")
-        .attr("y", 20)
+        .attr("y", 24)
         .attr("x", -height / 2)
         .text("UMAP 2");
 
@@ -2094,7 +2092,7 @@ window.addEventListener("resize", () => {
     svg.attr("width", width).attr("height", height);
 
     if (allNodesData && allNodesData.length > 0) {
-        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+        const margin = mapMargin;
         
         // Aggiorna il range delle scale
         xScale.range([margin.left, width - margin.right]);
@@ -2125,7 +2123,7 @@ window.addEventListener("resize", () => {
             if (isYAxis) {
                 d3.select(this).attr("x", -height / 2);
             } else {
-                d3.select(this).attr("x", width / 2).attr("y", height - 10);
+                d3.select(this).attr("x", width / 2).attr("y", height - 28);
             }
         });
     }
@@ -2143,3 +2141,4 @@ window.addEventListener("resize", () => {
         renderTopicBarchart(currentTopicWords);
     }
 });
+
