@@ -1015,7 +1015,7 @@ function updatePanelVisibility() {
     if (selectionMode === "cluster") {
         if (tokenPanel) tokenPanel.style.display = "none";
         if (tfidfPanel) tfidfPanel.style.display = "block";
-        if (bertopicPanel) bertopicPanel.style.display = "none";
+        if (bertopicPanel) bertopicPanel.style.display = "block";
     } else if (interactionMode === "click" && selectionMode === "point") {
         if (tokenPanel) tokenPanel.style.display = "block";
         if (tfidfPanel) tfidfPanel.style.display = "none";
