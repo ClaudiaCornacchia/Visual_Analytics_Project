@@ -163,6 +163,8 @@ let perturbationResults = [];
 let activePerturbationKey = null;
 let targetWordForPerturbation = null;
 
+let currentTopicLens = "words_operational";
+
 const baseNodeRadius = 6;
 const normalNodeOpacity = 0.72;
 const highlightedNodeOpacity = 0.86;
@@ -226,7 +228,7 @@ function updateBertopicSelectionSummary(nodes) {
     }
 
     // Render the bar chart for the dominant topic's keywords
-    renderTopicBarchart(topicData.words);
+    renderTopicBarchart(topicData[currentTopicLens]);
 }
 
 function getDominantTopicId(nodes) {
@@ -1816,7 +1818,9 @@ function applyTopicSelection(selectedId) {
     if (!topicData) return;
 
     activeTopicSelectionId = selectedId;
-    renderTopicBarchart(topicData.words_operational);
+    
+    // CRUCIALE: Usiamo [currentTopicLens] invece di ".words"
+    renderTopicBarchart(topicData[currentTopicLens]);
 
     d3.selectAll("circle.node")
         .transition()
@@ -1825,6 +1829,24 @@ function applyTopicSelection(selectedId) {
         .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
         .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
 }
+d3.selectAll('input[name="topicLens"]').on("change", function() {
+    // 1. Aggiorna la variabile globale con il value del bottone cliccato
+    currentTopicLens = this.value; 
+
+    // 2. Se un topic è già selezionato nella mappa, aggiorna subito il grafico!
+    if (activeTopicSelectionId !== null) {
+        const topicData = allTopicsData.find(t => t.id === activeTopicSelectionId);
+        if (topicData) {
+            selectedWordFilter = null; // Resetta la parola cliccata
+            
+            // Ridisegna il barchart con la nuova lente (es. words_raw o words_no_brands)
+            renderTopicBarchart(topicData[currentTopicLens]);
+            
+            // Ripristina la mappa
+            highlightTweetsByWord(null); 
+        }
+    }
+});
 
 // 1. Carica i dati statici all'avvio dal file JSON locale
 fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
@@ -1853,7 +1875,7 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
     selector.on("change", function() {
         const selectedId = parseInt(this.value);
         const topicData = allTopicsData.find(t => t.id === selectedId);
-        renderTopicBarchart(topicData.words_operational);
+        renderTopicBarchart(topicData[currentTopicLens]);
 
         d3.selectAll("circle.node")
         .transition()
@@ -1901,13 +1923,14 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
 });
 
 
-
 // 2. Funzione helper per ottenere il nome formattato
 function getTopicDisplayName(topicId, wordsArray = []) {
     const manualName = manualTopicNames[topicId] || `Topic ${topicId}`;
     
     return manualName;
 }
+
+
 
 // 3. Disegna il grafico a barre per le parole
 
