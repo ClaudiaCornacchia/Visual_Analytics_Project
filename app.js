@@ -31,20 +31,18 @@ const sentimentColors = {
 const manualTopicNames = {
     "-1": "Outliers",
 
-    "0": "Cancellations", // service, cancelled, customer, hours
-    "1": "Fleet",                // fleets, fleek, hold
-    "2": "Website Issues",                            // website, site, check, applied
-    "3": "Cancelled Flights",                         // cancelled flight
-    "4": "Customer Service",                          // service, customer service
-    "5": "Telephone hold",                      // hold, phone, hour
-    "6": "Customer care",                    // finally, dmed, think
-    "7": "Companion Pass and Travel",                 // companion pass, nashville
-    "8": "Inflight Wi-Fi",                            // wifi, inflight wifi
-    "9": "Route and Results Sharing",                 // shares, results, route, country
-    "10": "Destination Dragons Promotion",            // destinationdragons, imaginedragons
-    "11": "En Route Flights ",                 // flytpa, enroute, departs
-    "12": "Email ",           // email, question, message
-    "13": "CEO"                // wall, ceo, jetblues ceo
+    "0": "Flight Cancellations",              // flight, cancelled, cancelled flightled
+    "1": "Flight Delays",                     // delayed, late, plane, flight
+    "2": "Call Center Hold Times",          // hold, phone, hours, hung
+    "3": "General Feedback",                  // flight, hold, great, good (mixed feedback)
+    "4": "Lost Luggage",            // bag, luggage, lost, bags, baggage
+    "5": "Customer Service",                  // customer, service, weather
+    "6": "Promotions",       // destinationdragons, imaginedragons, companion pass
+    "7": "Emails",            // email, appreciate, confirmation, message
+    "8": "Inflight Wi-Fi",                    // wifi, inflight wifi, slow, power
+    "9": "En Route Updates",                  // flytpa, enroute, departs, arrives
+    "10": "Corporate",          // wall, ceo, street, wall street
+    "11": "Crew Praise"                       // crew, flt, great, professionals
 };
 
 const perturbationColors = {
@@ -1818,7 +1816,7 @@ function applyTopicSelection(selectedId) {
     if (!topicData) return;
 
     activeTopicSelectionId = selectedId;
-    renderTopicBarchart(topicData.words);
+    renderTopicBarchart(topicData.words_operational);
 
     d3.selectAll("circle.node")
         .transition()
@@ -1828,21 +1826,16 @@ function applyTopicSelection(selectedId) {
         .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
 }
 
-// 1. Scarica i dati all'avvio// Usa la tua variabile globale per puntare al server corretto
-fetch(API_BASE_URL + '/api/topics', {
-    method: 'GET',
-    headers: {
-        // Mantiene il bypass per la schermata di sicurezza di Ngrok
-        'ngrok-skip-browser-warning': 'true' 
-    }
-})
+// 1. Carica i dati statici all'avvio dal file JSON locale
+fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
 .then(res => {
     if (!res.ok) {
-        throw new Error(`Errore Server HTTP: ${res.status}`);
+        throw new Error(`Errore caricamento JSON: ${res.status}`);
     }
     return res.json();
 })
 .then(data => {
+    // Il processing dei dati rimane identico!
     allTopicsData = data.map(topic => ({
         ...topic,
         label: topic.label || getTopicLabel(normalizeTopicId(topic.id))
@@ -1853,14 +1846,14 @@ fetch(API_BASE_URL + '/api/topics', {
     allTopicsData.forEach(topic => {
         selector.append("option")
             .attr("value", topic.id)
-            .text(`${getTopicDisplayName(topic.id, topic.words)} (${topic.count} tweets)`);
+            .text(`${getTopicDisplayName(topic.id, topic.words_operational)} (${topic.count} tweets)`);
     });
 
     // Ascolta il click
     selector.on("change", function() {
         const selectedId = parseInt(this.value);
         const topicData = allTopicsData.find(t => t.id === selectedId);
-        renderTopicBarchart(topicData.words);
+        renderTopicBarchart(topicData.words_operational);
 
         d3.selectAll("circle.node")
         .transition()
