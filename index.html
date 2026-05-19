@@ -9,7 +9,8 @@
         body { display: flex; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; margin: 0; overflow: hidden; background-color: #f1f5f9; color: #1e293b; }
 
         /* Layout Principale */
-        #scatterplot-container { width: 65vw; height: 100vh; position: relative; background: #f8fafc; border-right: 2px solid #cbd5e1; }
+        #scatterplot-container { width: 65vw; height: 100vh; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #e2e8f0; border-right: 2px solid #cbd5e1; }
+        #map-panel { position: relative; flex: 1 1 auto; min-height: 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #details-panel { width: 35vw; height: 100vh; padding: 15px; background: #e2e8f0; overflow-y: auto; }
 
         /* Titoli di sezione */
@@ -55,7 +56,7 @@
         .perturbation-diff { background: rgba(251, 191, 36, 0.25); border-radius: 4px; padding: 2px 4px; }
 
         /* Controlli Mappa Overlay */
-        #map-toolbar { position: absolute; top: 18px; right: 18px; display: flex; align-items: center; gap: 8px; z-index: 10; }
+        #map-toolbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; z-index: 10; }
         .toolbar-pill { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 2px 8px rgba(15,23,42,0.12); border: 1px solid #cbd5e1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.82rem; }
         .toolbar-pill.icon-btn { width: 36px; padding: 0; font-size: 1rem; }
         .toolbar-pill select { border: none; background: transparent; font-size: 0.82rem; padding: 0; outline: none; }
@@ -64,13 +65,13 @@
         .toolbar-toggle-group { display: inline-flex; gap: 4px; }
         .toolbar-toggle-btn { border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; color: #475569; cursor: pointer; }
         .toolbar-toggle-btn.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; }
-        #map-legend-panel { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.96); border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 2px 8px rgba(15,23,42,0.08); padding: 10px 12px; min-width: 220px; max-width: 260px; max-height: calc(100vh - 140px); overflow-y: auto; z-index: 10; }
-        .map-legend-topline { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+        #map-legend-panel { flex: 0 0 auto; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 8px 10px; display: flex; align-items: center; gap: 12px; overflow-x: auto; }
+        .map-legend-topline { display: flex; align-items: baseline; gap: 8px; margin-bottom: 0; flex: 0 0 auto; }
         .map-legend-header { font-size: 0.82rem; font-weight: 700; color: #334155; text-transform: uppercase; }
         .map-legend-label { font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase; }
-        .map-total-count { font-size: 0.78rem; color: #64748b; margin-bottom: 8px; }
-        .map-legend-items { display: flex; flex-direction: column; gap: 7px; }
-        .map-legend-item { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 8px; width: 100%; }
+        .map-total-count { font-size: 0.78rem; color: #64748b; margin-bottom: 0; flex: 0 0 auto; white-space: nowrap; }
+        .map-legend-items { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 7px; min-width: 0; }
+        .map-legend-item { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 5px 8px; width: auto; white-space: nowrap; flex: 0 0 auto; }
         .map-legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.15); flex: 0 0 auto; }
         .chart-placeholder { min-height: 120px; display: flex; align-items: center; justify-content: center; text-align: center; color: #94a3b8; font-size: 0.9rem; }
         .chart-tooltip { position: fixed; pointer-events: none; z-index: 1000; background: rgba(15, 23, 42, 0.94); color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24); opacity: 0; transition: opacity 0.12s ease; }
@@ -92,7 +93,7 @@
         .trajectory  { stroke-width: 2px; fill: none; }
         .brush .selection { stroke: #475569; stroke-dasharray: 4,4; fill: rgba(148, 163, 184, 0.2); }
         .brush .overlay { cursor: crosshair; }
-        .axis-label { font-size: 15px; font-weight: bold; fill: #475569; text-anchor: middle; }
+        .axis-label { font-size: 15px; font-weight: bold; fill: #0f172a; text-anchor: middle; paint-order: stroke; stroke: #f8fafc; stroke-width: 3px; stroke-linejoin: round; }
         
         /* Stile per le barre del TF-IDF */
         .tfidf-bar {
@@ -161,6 +162,9 @@
             <button id="btn-pan-selection" class="toolbar-pill icon-btn" title="Center selection" disabled>◎</button>
             <button id="btn-reset-zoom" class="toolbar-pill icon-btn" title="Reset view">↺</button>
         </div>
+        <div id="map-panel">
+        <svg id="map"></svg>
+        </div>
         <div id="map-legend-panel">
             <div class="map-legend-topline">
                 <div class="map-legend-header">Legend</div>
@@ -169,7 +173,6 @@
             <div class="map-total-count" id="map-total-count">Total: 0 tweets</div>
             <div id="map-legend-items" class="map-legend-items"></div>
         </div>
-        <svg id="map"></svg>
     </div>
 
     <div id="details-panel">
