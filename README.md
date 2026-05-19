@@ -79,11 +79,24 @@ Additionally, clicking a keyword within a topic's bar chart filters the highligh
 
 
 ## Perturbation Types
+To evaluate the robustness of the embedding model and determine if it truly captures underlying semantics rather than superficial patterns, the system features a suite of real-time adversarial attacks. Users can select a specific word within a tweet's heatmap to trigger these perturbations:
+1. **Lexical Swaps (Synonyms/Antonyms/Removals)**: Replaces the target token with a synonym or antonym retrieved via WordNet and the Datamuse API, or completely removes it from the sentence.
+2. **Custom Lexical Replacements**: Allows users to manually substitute a specific token with arbitrary, custom text to test tailored adversarial hypotheses.
+3. **Noise Injection**: Inserts conversational fillers (e.g., "uhm", "literally") or synthetic noise (e.g., "blah", "xyz") to test the model's resistance to cumulative structural noise.
+4. **Character-Level Typos**: Swaps adjacent letters within a word to evaluate the robustness of the model's tokenizer.
+5. **Syntax-Level Shuffling**: Randomly permutes the word order of the tweet to evaluate the model's reliance on attention mechanisms versus a strict "Bag-of-Words" approach.
+6. **Generative Attacks (LLM-Driven)**: Utilizes an external LLM (Gemma) to completely rewrite the tweet by generating paraphrased counterfactuals (same meaning, different words) or sentiment-inverted variations.
 
-1. **Synonym Replacement**: Replaces the user selected word with a synonym, if no synonym is available the text remains unchanged and if the user doesn't select any word the first available word with a synonym will be used.
-2. **Antonym Replacement**: Replaces the user selected word with an antonym if no antonym is available the text remains unchanged and if the user doesn't select any word the first available word with an antonym will be used.
-3. **Remove Word**: Removes the user selected word from the text, if the user doesn't select any word the first available word will be removed.
-4. **Custom Replacement**: Replaces the user selected word with a custom word entered by the user.
-5. **LLM Paraphrase**: The entire tweet is paraphrased by the LLM, no word selection is needed.
-6. **LLM Opposite**: The entire tweet is transformed to its opposite meaning by the LLM, no word selection is needed.
-7. **Noise**: Adds a random word to the text
+When a perturbation is applied, the system draws a visual trajectory (an arrow) on the scatterplot from the original tweet's position to its new perturbed coordinate. It is crucial to interpret these arrows topologically rather than strictly geometrically. Because the latent space is visualized using UMAP (Uniform Manifold Approximation and Projection)—a non-linear dimensionality reduction technique—the absolute visual length of the arrow is less important than the neighborhood boundaries it crosses.
+- *Short Trajectories (Intra-cluster Drift)*: If the perturbed tweet moves but remains within its original local neighborhood (e.g., staying within the "Flight Delays" cluster), the model exhibits robustness. It successfully recognized that despite the typo, noise, or synonym swap, the core semantic meaning remained unchanged.
+- *Long Trajectories (Inter-cluster Drift)*: If the arrow jumps across the map into a completely different neighborhood (e.g., moving from "Flight Delays" to "Customer Service"), the model exhibits a vulnerability. It indicates that the specific perturbation (such as a shuffled syntax or a single changed word) was enough to completely alter the model's understanding of the sentence, proving a reliance on structural heuristics over true semantic comprehension.
+
+### New coordinate calculation
+
+When a perturbation is executed, the system calculates the new 2D coordinates (`new_x`, `new_y`) of the modified tweet using a  three-step pipeline running on the backend:
+
+1. **Adversarial Text Generation:** The selected perturbation function processes the original tweet and applies the text modification, producing the altered string (`new_text`).
+2. **High-Dimensional Embedding:** The `new_text` is passed back to the *qwen3-embedding:0.6B* model via Ollama. The model generates a new high-dimensional dense vector representing the altered semantic state.
+3. **Frozen UMAP Projection (`.transform()`):** To precisely isolate the effect of the perturbation, the system avoids recalculating the entire dimensionality reduction map (which would recalculate all points and destroy the baseline structure). Instead, it calls the `.transform()` method on the pre-trained `global_umap_mapper`. 
+
+This projects the new high-dimensional vector directly into the stable, existing 2D coordinate space, guaranteeing that the baseline geometry remains fixed and that the visual trajectory arrow accurately reflects only the pure semantic "drift" caused by the attack.
