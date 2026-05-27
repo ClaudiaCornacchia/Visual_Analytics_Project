@@ -1,5 +1,5 @@
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = " https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://e312-34-61-239-242.ngrok-free.app";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -69,6 +69,9 @@ const svg = d3.select("#map")
     .attr("width", width)
     .attr("height", height);
 
+const mapCanvas = document.getElementById("map-canvas");
+const mapContext = mapCanvas.getContext("2d");
+
 const zoomGroup = svg.append("g").attr("id", "zoom-group");
 const linkLayer = zoomGroup.append("g").attr("id", "link-layer");
 const nodeLayer = zoomGroup.append("g").attr("id", "node-layer");
@@ -86,6 +89,7 @@ svg.append("defs").append("marker")
     .attr("refY", 0)
     .attr("markerWidth", 6)
     .attr("markerHeight", 6)
+    .attr("markerUnits", "userSpaceOnUse")
     .attr("orient", "auto")
     .append("path")
     .attr("d", "M0,-5L10,0L0,5")
@@ -96,6 +100,7 @@ const btnClear = document.getElementById("btn-clear");
 const btnResetZoom = document.getElementById("btn-reset-zoom");
 const btnZoomSelection = document.getElementById("btn-zoom-selection");
 const btnZoomOut = document.getElementById("btn-zoom-out");
+const btnMapNavigation = document.getElementById("btn-map-navigation");
 let btnPanSelection = document.getElementById("btn-pan-selection");
 const colorEncodingSelect = document.getElementById("color-encoding-select");
 const mapToolbar = document.getElementById("map-toolbar");
@@ -149,11 +154,14 @@ let xScale;
 let yScale;
 let allNodesData = [];
 let selectedNodesData = [];
+let selectedNodeIds = new Set();
+let canvasNodeRadius = 6;
 let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
 let interactionMode = "click";
 let selectionMode = "point";
+let mapNavigationMode = false;
 let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
@@ -162,16 +170,21 @@ let brushModeActive = false;
 let perturbationResults = [];
 let activePerturbationKey = null;
 let targetWordForPerturbation = null;
+let perturbationTrajectories = [];
+let perturbationVisualNodes = [];
 
 let currentTopicLens = "words_operational";
 
 const baseNodeRadius = 6;
 const normalNodeOpacity = 0.72;
 const highlightedNodeOpacity = 0.86;
-const normalNodeStrokeColor = "rgba(15, 23, 42, 0.38)";
-const normalNodeStrokeWidth = 0.45;
+const normalNodeStrokeColor = "rgba(15, 23, 42, 0.78)";
+const normalNodeStrokeWidth = 1.25;
 const selectedNodeStrokeColor = "#111827";
-const selectedNodeStrokeWidth = 1.15;
+const selectedNodeStrokeWidth = 3.0;
+const keywordNodeStrokeWidth = 2.6;
+const brushPointSelectedNodeStrokeWidth = 4.4;
+const brushPointKeywordNodeStrokeWidth = 4.0;
 const mapMargin = { top: 26, right: 34, bottom: 86, left: 72 };
 const axisTickCount = 8;
 const perturbationLabels = {
@@ -344,7 +357,11 @@ function reapplySelectionMode() {
 }
 
 function setClusterEncoding(encoding) {
+    const encodingChanged = currentColorEncoding !== encoding;
     currentColorEncoding = encoding;
+    if (encodingChanged) {
+        clearPerturbationState();
+    }
     if (colorEncodingSelect) {
         colorEncodingSelect.value = encoding;
     }
@@ -371,6 +388,16 @@ function syncModeButtons() {
     clusterEncodingButtons.forEach(button => {
         button.classList.toggle("active", button.dataset.encoding === currentColorEncoding);
     });
+    if (btnMapNavigation) {
+        btnMapNavigation.classList.toggle("active", mapNavigationMode);
+        btnMapNavigation.setAttribute("aria-pressed", String(mapNavigationMode));
+    }
+}
+
+function setMapNavigationMode(active) {
+    mapNavigationMode = active;
+    setBrushMode(interactionMode === "brush" && !mapNavigationMode);
+    syncModeButtons();
 }
 
 function setResetButtonVisibility(visible) {
@@ -416,45 +443,29 @@ function isViewTransformed() {
 
 function hasOffscreenPerturbedNode() {
     const t = d3.zoomTransform(svg.node());
-    let hasOffscreenNode = false;
+    return allNodesData.some(node => {
+        if (!node._perturbed) return false;
 
-    nodeLayer.selectAll("circle.node").each(function () {
-        if (hasOffscreenNode || this.dataset.perturbed !== "true") return;
-
-        const localX = Number(this.getAttribute("cx"));
-        const localY = Number(this.getAttribute("cy"));
-        const screenX = t.applyX(localX);
-        const screenY = t.applyY(localY);
-
-        if (screenX < 0 || screenX > width || screenY < 0 || screenY > height) {
-            hasOffscreenNode = true;
-        }
+        const position = getCurrentNodePosition(node);
+        const screenX = t.applyX(position.x);
+        const screenY = t.applyY(position.y);
+        return screenX < 0 || screenX > width || screenY < 0 || screenY > height;
     });
-
-    return hasOffscreenNode;
 }
 
 function canPanMap() {
-    return !brushModeActive && (isViewTransformed() || hasOffscreenPerturbedNode());
-}
-
-function getNodeElement(node) {
-    return document.getElementById(`node-${node.id}`);
+    return mapNavigationMode || (!brushModeActive && (isViewTransformed() || hasOffscreenPerturbedNode()));
 }
 
 function getCurrentNodePosition(node) {
-    const el = getNodeElement(node);
-    if (!el) {
-        return { x: xScale(node.x), y: yScale(node.y) };
-    }
-
     return {
-        x: Number(el.getAttribute("cx")),
-        y: Number(el.getAttribute("cy"))
+        x: node._canvasX ?? xScale(node.x),
+        y: node._canvasY ?? yScale(node.y)
     };
 }
 
 function getNodeFillColor(node) {
+    if (node._fillOverride) return node._fillOverride;
     if (currentColorEncoding === "airline") {
         return airlineColorScale(node.airline);
     }
@@ -465,21 +476,222 @@ function getNodeFillColor(node) {
     return sentimentColors[node.sentiment] || "#64748b";
 }
 
-function updateNodeColors() {
-    nodeLayer.selectAll("circle.node").each(function (d) {
-        const circle = d3.select(this);
-        const isPerturbed = this.dataset.perturbed === "true";
+function resizeMapCanvas() {
+    const pixelRatio = window.devicePixelRatio || 1;
+    mapCanvas.width = Math.max(1, Math.floor(width * pixelRatio));
+    mapCanvas.height = Math.max(1, Math.floor(height * pixelRatio));
+    mapCanvas.style.width = `${width}px`;
+    mapCanvas.style.height = `${height}px`;
+    mapContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+}
 
-        if (isPerturbed) return;
-
-        if (currentColorEncoding === "airline") {
-            circle.style("fill", airlineColorScale(d.airline));
-        } else if (currentColorEncoding === "topic") {
-            circle.style("fill", d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id));
-        } else {
-            circle.style("fill", null);
+function resetNodeVisuals({ resetPerturbations = false } = {}) {
+    allNodesData.forEach(node => {
+        node._selected = false;
+        node._selectionMuted = false;
+        node._dimmed = false;
+        node._keywordHighlight = false;
+        node._opacity = normalNodeOpacity;
+        node._stroke = normalNodeStrokeColor;
+        node._strokeWidth = normalNodeStrokeWidth;
+        if (resetPerturbations) {
+            node._perturbed = false;
+            node._canvasX = null;
+            node._canvasY = null;
+            node._fillOverride = null;
         }
     });
+}
+
+function isBrushPointTfidfHighlightActive() {
+    return interactionMode === "brush" && selectionMode === "point" && Boolean(activeKeyword);
+}
+
+function getSelectedNodeStrokeWidth() {
+    return isBrushPointTfidfHighlightActive() ? brushPointSelectedNodeStrokeWidth : selectedNodeStrokeWidth;
+}
+
+function getKeywordNodeStrokeWidth() {
+    return isBrushPointTfidfHighlightActive() ? brushPointKeywordNodeStrokeWidth : keywordNodeStrokeWidth;
+}
+
+function applySelectionVisualState() {
+    const hasSelection = selectedNodeIds.size > 0;
+    allNodesData.forEach(node => {
+            node._selected = selectedNodeIds.has(node.id);
+            node._selectionMuted = hasSelection && !node._selected;
+            if (node._selected) {
+                node._opacity = highlightedNodeOpacity;
+                node._stroke = selectedNodeStrokeColor;
+            node._strokeWidth = getSelectedNodeStrokeWidth();
+        } else if (node._selectionMuted) {
+            node._opacity = 0.14;
+            node._stroke = normalNodeStrokeColor;
+            node._strokeWidth = normalNodeStrokeWidth;
+        } else if (!node._keywordHighlight && !node._dimmed) {
+            node._opacity = normalNodeOpacity;
+            node._stroke = normalNodeStrokeColor;
+            node._strokeWidth = normalNodeStrokeWidth;
+        }
+    });
+}
+
+function drawCanvasNode(node, transform, forceHighlight = false) {
+    const position = getCurrentNodePosition(node);
+    const x = transform.applyX(position.x);
+    const y = transform.applyY(position.y);
+    const radius = Math.max(1.2, canvasNodeRadius * transform.k);
+    const opacity = forceHighlight ? highlightedNodeOpacity : (node._opacity ?? normalNodeOpacity);
+    const stroke = forceHighlight ? (node._keywordHighlight ? keywordHighlightColor : selectedNodeStrokeColor) : (node._stroke ?? normalNodeStrokeColor);
+    const strokeWidth = forceHighlight
+        ? (node._keywordHighlight ? getKeywordNodeStrokeWidth() : getSelectedNodeStrokeWidth())
+        : (node._strokeWidth ?? normalNodeStrokeWidth);
+
+    mapContext.globalAlpha = opacity;
+    mapContext.beginPath();
+    mapContext.arc(x, y, radius, 0, Math.PI * 2);
+    mapContext.fillStyle = getNodeFillColor(node);
+    mapContext.fill();
+
+    if (strokeWidth > 0) {
+        mapContext.globalAlpha = Math.min(1, opacity + 0.1);
+        mapContext.lineWidth = strokeWidth;
+        mapContext.strokeStyle = stroke;
+        mapContext.stroke();
+    }
+}
+
+function drawMapCanvas() {
+    if (!xScale || !yScale) return;
+
+    mapContext.clearRect(0, 0, width, height);
+    const transform = d3.zoomTransform(svg.node());
+    const highlightedNodes = [];
+
+    allNodesData.forEach(node => {
+        if (node._selected || node._keywordHighlight) {
+            highlightedNodes.push(node);
+            return;
+        }
+        drawCanvasNode(node, transform);
+    });
+
+    highlightedNodes.forEach(node => drawCanvasNode(node, transform, true));
+    perturbationVisualNodes.forEach(node => drawCanvasNode(node, transform, true));
+    mapContext.globalAlpha = 1;
+}
+
+function getInsetLineEndpoints(startX, startY, endX, endY, inset) {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (!distance || distance <= inset * 2) {
+        return { x1: startX, y1: startY, x2: endX, y2: endY };
+    }
+
+    const ux = dx / distance;
+    const uy = dy / distance;
+    return {
+        x1: startX + ux * inset,
+        y1: startY + uy * inset,
+        x2: endX - ux * inset,
+        y2: endY - uy * inset
+    };
+}
+
+function updatePerturbationTrajectories() {
+    const transform = d3.zoomTransform(svg.node());
+    const zoomK = Math.max(transform.k || 1, 0.001);
+    const screenGap = 2 / zoomK;
+    const lineWidth = Math.max(0.12, 0.85 / zoomK);
+    const arrowLength = Math.max(2.2, 7 / zoomK);
+    const arrowHalfWidth = Math.max(1.0, 3.2 / zoomK);
+    const ghostRadius = Math.max(2.4, canvasNodeRadius * 1.05);
+    const ghostStrokeWidth = Math.max(0.25, 0.9 / zoomK);
+    const startInset = canvasNodeRadius + screenGap;
+    const endInset = canvasNodeRadius;
+
+    perturbationTrajectories.forEach(trajectory => {
+        const startPoint = getInsetLineEndpoints(
+            trajectory.startX,
+            trajectory.startY,
+            trajectory.endX,
+            trajectory.endY,
+            startInset
+        );
+        const endPoint = getInsetLineEndpoints(
+            trajectory.startX,
+            trajectory.startY,
+            trajectory.endX,
+            trajectory.endY,
+            endInset
+        );
+        const endpoints = {
+            x1: startPoint.x1,
+            y1: startPoint.y1,
+            x2: endPoint.x2,
+            y2: endPoint.y2
+        };
+        const dx = endpoints.x2 - endpoints.x1;
+        const dy = endpoints.y2 - endpoints.y1;
+        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+        const ux = dx / distance;
+        const uy = dy / distance;
+        const baseX = endpoints.x2 - ux * arrowLength;
+        const baseY = endpoints.y2 - uy * arrowLength;
+        const perpX = -uy;
+        const perpY = ux;
+        const arrowPath = [
+            `M${endpoints.x2},${endpoints.y2}`,
+            `L${baseX + perpX * arrowHalfWidth},${baseY + perpY * arrowHalfWidth}`,
+            `L${baseX - perpX * arrowHalfWidth},${baseY - perpY * arrowHalfWidth}`,
+            "Z"
+        ].join("");
+
+        trajectory.ghost
+            .attr("cx", trajectory.startX)
+            .attr("cy", trajectory.startY)
+            .attr("r", ghostRadius)
+            .attr("stroke-width", ghostStrokeWidth)
+            .attr("opacity", 0.78);
+
+        trajectory.line
+            .attr("x1", endpoints.x1)
+            .attr("y1", endpoints.y1)
+            .attr("x2", baseX)
+            .attr("y2", baseY)
+            .attr("stroke-width", lineWidth);
+
+        trajectory.head
+            .attr("d", arrowPath);
+    });
+}
+
+function findCanvasNodeAt(screenX, screenY) {
+    if (!allNodesData.length || brushModeActive || mapNavigationMode) return null;
+    const transform = d3.zoomTransform(svg.node());
+    const hitRadius = Math.max(5, canvasNodeRadius * transform.k + 3);
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    const hitNodes = [...perturbationVisualNodes].reverse().concat(allNodesData);
+    for (const node of hitNodes) {
+        const position = getCurrentNodePosition(node);
+        const dx = transform.applyX(position.x) - screenX;
+        const dy = transform.applyY(position.y) - screenY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= hitRadius && distance < nearestDistance) {
+            nearest = node;
+            nearestDistance = distance;
+        }
+    }
+
+    return nearest;
+}
+
+function updateNodeColors() {
+    drawMapCanvas();
 }
 
 function escapeHtml(text) {
@@ -578,6 +790,7 @@ function storePerturbationResult(nodeId, type, text, originalText, displayText) 
 
     activePerturbationKey = key;
     renderPerturbationCarousel();
+    return nextResult;
 }
 
 function resetPerturbationResults() {
@@ -818,20 +1031,11 @@ function renderMapLegends(nodes = []) {
 }
 
 function updateSelectionUI() {
-    const selectedIds = new Set(selectedNodesData.map(node => node.id));
+    selectedNodeIds = new Set(selectedNodesData.map(node => node.id));
     const selectionAttributeGrid = document.getElementById("tw-sentiment")?.closest("div")?.parentElement;
 
-    nodeLayer.selectAll("circle.node")
-        .classed("selected", d => selectedIds.has(d.id))
-        .classed("selection-muted", d => selectedIds.size > 0 && !selectedIds.has(d.id))
-        .style("opacity", d => selectedIds.has(d.id) ? highlightedNodeOpacity : normalNodeOpacity)
-        .style("stroke", d => selectedIds.has(d.id) ? selectedNodeStrokeColor : normalNodeStrokeColor)
-        .style("stroke-width", d => selectedIds.has(d.id) ? selectedNodeStrokeWidth : normalNodeStrokeWidth)
-        .each(function (d) {
-            if (selectedIds.has(d.id)) {
-                d3.select(this).raise();
-            }
-        });
+    applySelectionVisualState();
+    drawMapCanvas();
 
     const hasSelection = selectedNodesData.length > 0;
     const singleSelection = selectedNodesData.length === 1;
@@ -858,7 +1062,6 @@ function updateSelectionUI() {
         document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
         updatePerturbationButtonState(); // Update button state when selection is cleared
-        resetPerturbationResults();
         return;
     }
 
@@ -881,33 +1084,72 @@ function updateSelectionUI() {
     document.getElementById("tw-airline").innerText = getNodeAirlineLabel(node);
     document.getElementById("tw-topic").innerText = getNodeTopicLabel(node);
     renderTokenAnalysis(node.text);
+    if (node._lastPerturbationResult) {
+        activePerturbationKey = node._lastPerturbationResult.key;
+        renderPerturbationCarousel();
+        setPerturbationDisplay(node._lastPerturbationResult);
+        document.getElementById("results-area").style.display = "block";
+    } else {
+        setPerturbationDisplay(null);
+    }
     //renderHeatmap(node.text);
     // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
 }
 
-function clearSelection() {
+function showPerturbedTweetDetails(visualNode) {
+    const result = visualNode._perturbationResult;
+    if (!result) return;
+
+    const selectionAttributeGrid = document.getElementById("tw-sentiment")?.closest("div")?.parentElement;
+    if (selectionAttributeGrid) {
+        selectionAttributeGrid.style.display = "grid";
+    }
+
+    document.getElementById("selection-count").innerText = "1 perturbed tweet selected";
+    document.getElementById("tw-id").innerText = `${result.nodeId} · perturbed`;
+    document.getElementById("tw-sentiment").innerText = visualNode.sentiment;
+    document.getElementById("tw-airline").innerText = getNodeAirlineLabel(visualNode);
+    document.getElementById("tw-topic").innerText = getNodeTopicLabel(visualNode);
+    d3.select("#heatmap-container").html("<em>Token analysis is shown for the perturbed tweet.</em>");
+
+    activePerturbationKey = result.key;
+    renderPerturbationCarousel();
+    setPerturbationDisplay(result);
+    document.getElementById("results-area").style.display = "block";
+
+    targetWordForPerturbation = null;
+    if (document.getElementById("target-word-info")) {
+        document.getElementById("target-word-info").style.display = "none";
+    }
+    updatePerturbationButtonState();
+    renderTokenAnalysis(result.text);
+}
+
+function clearPerturbationState() {
+    linkLayer.selectAll("*").remove();
+    perturbationTrajectories = [];
+    perturbationVisualNodes = [];
+    allNodesData.forEach(node => {
+        node._perturbed = false;
+        node._canvasX = null;
+        node._canvasY = null;
+        node._fillOverride = null;
+        node._lastPerturbationResult = null;
+    });
+    resetPerturbationResults();
+}
+
+function clearSelection(options = {}) {
+    const { resetPerturbations = false } = options;
     selectedNodesData = [];
     originalClickedNode = null;
     clearKeywordHighlight();
-    resetPerturbationResults();
-    linkLayer.selectAll("*").remove();
-    nodeLayer.selectAll("circle.node")
-        .classed("selected", false)
-        .classed("selection-muted", false)
-        .classed("dimmed", false)
-        .attr("data-perturbed", "false")
-        .transition()
-        .duration(800)
-        .attr("cx", d => xScale(d.x))
-        .attr("cy", d => yScale(d.y))
-        .style("fill", d => {
-            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
-            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
-            return null;
-        })
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    selectedNodeIds = new Set();
+    resetNodeVisuals({ resetPerturbations });
+    if (resetPerturbations) {
+        clearPerturbationState();
+    }
+    drawMapCanvas();
 
     targetWordForPerturbation = null;
     if (document.getElementById("target-word-info")) document.getElementById("target-word-info").style.display = "none";
@@ -1028,12 +1270,12 @@ function updatePanelVisibility() {
 function setInteractionMode(mode) {
     const modeChanged = interactionMode !== mode;
     interactionMode = mode;
-    setBrushMode(mode === "brush");
+    setBrushMode(mode === "brush" && !mapNavigationMode);
     if (mode !== "brush") {
         brushLayer.call(brush.move, null);
     }
     if (modeChanged) {
-        clearSelection();
+        clearSelection({ resetPerturbations: true });
     }
     syncModeButtons();
     updatePanelVisibility();
@@ -1046,7 +1288,7 @@ function setSelectionMode(mode) {
         originalClickedNode = null;
     }
     if (modeChanged) {
-        clearSelection();
+        clearSelection({ resetPerturbations: true });
     }
     syncModeButtons();
     updatePanelVisibility();
@@ -1055,6 +1297,7 @@ function setSelectionMode(mode) {
 const zoom = d3.zoom()
     .scaleExtent([0.5, 20])
     .filter(function (event) {
+        if (mapNavigationMode && event.type === "mousedown") return !event.ctrlKey && !event.button;
         if (brushModeActive) return false;
         if (event.type === "dblclick") return false;
         if (event.target && event.target.classList && event.target.classList.contains("node")) return false;
@@ -1064,6 +1307,8 @@ const zoom = d3.zoom()
     })
     .on("zoom", function (event) {
         zoomGroup.attr("transform", event.transform);
+        drawMapCanvas();
+        updatePerturbationTrajectories();
         setResetButtonVisibility(isViewTransformed() || hasOffscreenPerturbedNode());
 
         xAxisGroup.call(d3.axisBottom(event.transform.rescaleX(xScale)).ticks(axisTickCount))
@@ -1110,13 +1355,26 @@ svg.on("mousedown.panCursor", function (event) {
 
 svg.on("click.resetDim", function (event) {
     if (
+        mapNavigationMode ||
         event.target.closest("#map-toolbar") ||
         event.target.closest("#details-panel")
     ) return;
 
-    if (!event.target.classList.contains("node")) {
-        clearSelection();
+    const [pointerX, pointerY] = d3.pointer(event, svg.node());
+    const clickedNode = findCanvasNodeAt(pointerX, pointerY);
+    if (clickedNode) {
+        if (clickedNode._perturbationResult) {
+            showPerturbedTweetDetails(clickedNode);
+            return;
+        }
+
+        originalClickedNode = clickedNode;
+        const nodesToSelect = resolveClickSelectionMode([clickedNode], clickedNode);
+        selectNodes(nodesToSelect, { append: false, toggle: false });
+        return;
     }
+
+    clearSelection();
 });
 
 document.addEventListener("mouseup", () => document.body.classList.remove("panning"));
@@ -1163,27 +1421,10 @@ d3.csv("base_map.csv", function (d) {
     airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.airline))]);
     topicColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.topic_id))].filter(t => t !== -1).sort((a, b) => a - b));
     renderMapLegends();
-
-    nodeLayer.selectAll("circle.node")
-        .data(data)
-        .enter()
-        .append("circle")
-        .attr("class", d => `node ${d.sentiment}`)
-        .attr("id", d => `node-${d.id}`)
-        .attr("cx", d => xScale(d.x))
-        .attr("cy", d => yScale(d.y))
-        .attr("r", bigDataset ? 2.6 : baseNodeRadius)
-        .attr("shape-rendering", "crispEdges")
-        .attr("data-perturbed", "false")
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth)
-        .style("opacity", normalNodeOpacity)
-        .on("click", function (event, d) {
-            originalClickedNode = d;
-            const nodesToSelect = resolveClickSelectionMode([d], d);
-            selectNodes(nodesToSelect, { append: false, toggle: false });
-            event.stopPropagation();
-        });
+    canvasNodeRadius = bigDataset ? 2.6 : baseNodeRadius;
+    resizeMapCanvas();
+    resetNodeVisuals({ resetPerturbations: true });
+    drawMapCanvas();
 
     svg.append("text")
         .attr("class", "axis-label")
@@ -1431,18 +1672,21 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 
     postJson("/api/perturb", payload)
         .then(data => {
-                storePerturbationResult(node.id, perturbType, data.new_text, node.text, data.display_text);
+                const perturbationResult = storePerturbationResult(node.id, perturbType, data.new_text, node.text, data.display_text);
 
                 const startX = xScale(node.x);
                 const startY = yScale(node.y);
                 const endX = xScale(data.new_x);
                 const endY = yScale(data.new_y);
 
-                linkLayer.append("circle")
+                const ghost = linkLayer.append("circle")
                     .attr("class", "ghost-node")
                     .attr("cx", startX)
                     .attr("cy", startY)
-                    .attr("r", baseNodeRadius);
+                    .attr("r", baseNodeRadius)
+                    .attr("fill", getNodeFillColor(node))
+                    .attr("fill-opacity", 0.28)
+                    .attr("stroke", "#111827");
 
                 const line = linkLayer.append("line")
                     .attr("class", "trajectory")
@@ -1451,22 +1695,35 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
                     .attr("x2", startX)
                     .attr("y2", startY)
                     .attr("stroke", arrowColor)
-                    .attr("marker-end", "url(#arrowhead)");
+                    .attr("stroke-linecap", "butt");
 
-                line.transition().duration(1500).ease(d3.easeCubicOut)
-                    .attr("x2", endX)
-                    .attr("y2", endY);
+                const head = linkLayer.append("path")
+                    .attr("class", "trajectory-head")
+                    .attr("fill", arrowColor);
 
-                d3.select(`#node-${node.id}`)
-                    .attr("data-perturbed", "true")
-                    .transition()
-                    .duration(1500)
-                    .ease(d3.easeCubicOut)
-                    .attr("cx", endX)
-                    .attr("cy", endY)
-                    .style("fill", arrowColor)
-                    .style("stroke", normalNodeStrokeColor)
-                    .style("stroke-width", normalNodeStrokeWidth);
+                perturbationTrajectories.push({ startX, startY, endX, endY, ghost, line, head });
+                updatePerturbationTrajectories();
+
+                node._perturbed = true;
+                node._lastPerturbationResult = perturbationResult;
+                perturbationVisualNodes.push({
+                    id: `${node.id}-${perturbationResult.key}`,
+                    text: perturbationResult.text,
+                    sentiment: node.sentiment,
+                    airline: node.airline,
+                    topic_id: node.topic_id,
+                    topic_label: node.topic_label,
+                    _canvasX: endX,
+                    _canvasY: endY,
+                    _fillOverride: arrowColor,
+                    _opacity: highlightedNodeOpacity,
+                    _stroke: selectedNodeStrokeColor,
+                    _strokeWidth: selectedNodeStrokeWidth,
+                    _keywordHighlight: false,
+                    _perturbationResult: perturbationResult,
+                    _sourceNodeId: node.id
+                });
+                drawMapCanvas();
             })
             .catch(error => {
                 console.error("Fetch Error:", error);
@@ -1475,25 +1732,11 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 });
 
 document.getElementById("btn-clear").addEventListener("click", () => {
-    linkLayer.selectAll("*").remove();
-    nodeLayer.selectAll("circle.node")
-        .classed("selection-muted", false)
-        .attr("data-perturbed", "false")
-        .transition()
-        .duration(800)
-        .attr("cx", d => xScale(d.x))
-        .attr("cy", d => yScale(d.y))
-        .style("fill", d => {
-            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
-            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
-            return null;
-        })
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    clearPerturbationState();
+    applySelectionVisualState();
+    drawMapCanvas();
 
     document.getElementById("results-area").style.display = selectedNodesData.length ? "block" : "none";
-    resetPerturbationResults();
 });
 
 
@@ -1561,6 +1804,12 @@ if (btnZoomOut) {
     });
 }
 
+if (btnMapNavigation) {
+    btnMapNavigation.addEventListener("click", () => {
+        setMapNavigationMode(!mapNavigationMode);
+    });
+}
+
 if (btnPanSelection) {
     btnPanSelection.addEventListener("click", () => {
         centerSelectionInView(selectedNodesData);
@@ -1605,11 +1854,16 @@ function clearKeywordHighlight() {
         .style("fill", null)
         .style("stroke", null)
         .style("stroke-width", null);
-    nodeLayer.selectAll("circle.node")
-        .classed("dimmed", false)
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    allNodesData.forEach(node => {
+        node._keywordHighlight = false;
+        if (!node._selected && !node._selectionMuted && !node._dimmed) {
+            node._opacity = normalNodeOpacity;
+            node._stroke = normalNodeStrokeColor;
+            node._strokeWidth = normalNodeStrokeWidth;
+        }
+    });
+    applySelectionVisualState();
+    drawMapCanvas();
 }
 
 // 2. Funzione per Disegnare e Aggiornare il Grafico
@@ -1720,18 +1974,14 @@ function updateTFIDFChart(data) {
                 .style("stroke", b => b.word.toLowerCase() === activeKeyword ? "#0f172a" : null)
                 .style("stroke-width", b => b.word.toLowerCase() === activeKeyword ? "1.5px" : null);
 
-            d3.selectAll("circle.node")
-                .style("opacity", function(nodeData) {
-                    const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                    return hasWord ? highlightedNodeOpacity : 0.05; 
-                })
-                .style("stroke", function(nodeData) {
-                    const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                    return hasWord ? keywordHighlightColor : null;
-                })
-                .style("stroke-width", function(nodeData) {
-                    return nodeData.text.toLowerCase().includes(activeKeyword) ? "2.5px" : null;
-                });
+            allNodesData.forEach(nodeData => {
+                const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
+                nodeData._keywordHighlight = hasWord;
+                nodeData._opacity = hasWord ? highlightedNodeOpacity : 0.05;
+                nodeData._stroke = hasWord ? keywordHighlightColor : normalNodeStrokeColor;
+                nodeData._strokeWidth = hasWord ? getKeywordNodeStrokeWidth() : normalNodeStrokeWidth;
+            });
+            drawMapCanvas();
         }
     });
 } 
@@ -1748,6 +1998,28 @@ function applyFilters() {
 
     // Aggiorniamo il numeretto dello slider
     document.getElementById("word-count-display").innerText = maxLength === 40 ? "All" : maxLength;
+
+    allNodesData.forEach(d => {
+        const wordCount = d.text.split(/\s+/).length;
+        const isDimmed = Boolean(
+            (keyword && !d.text.toLowerCase().includes(keyword)) ||
+            (sentiment !== "all" && d.sentiment !== sentiment) ||
+            (airline !== "all" && d.airline !== airline) ||
+            (maxLength < 40 && wordCount > maxLength)
+        );
+
+        d._dimmed = isDimmed;
+        if (isDimmed) {
+            d._opacity = 0.1;
+        } else if (!d._selected && !d._selectionMuted && !d._keywordHighlight) {
+            d._opacity = normalNodeOpacity;
+            d._stroke = normalNodeStrokeColor;
+            d._strokeWidth = normalNodeStrokeWidth;
+        }
+    });
+    applySelectionVisualState();
+    drawMapCanvas();
+    return;
 
     // 2. Passiamo al setaccio tutti i nodi sulla mappa
     nodeLayer.selectAll("circle.node")
@@ -1806,10 +2078,9 @@ function clearTopicSelection() {
     }
 
     renderTopicBarchart(null);
-    nodeLayer.selectAll("circle.node")
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    resetNodeVisuals();
+    applySelectionVisualState();
+    drawMapCanvas();
 }
 
 function applyTopicSelection(selectedId) {
@@ -1822,12 +2093,13 @@ function applyTopicSelection(selectedId) {
     // CRUCIALE: Usiamo [currentTopicLens] invece di ".words"
     renderTopicBarchart(topicData[currentTopicLens]);
 
-    d3.selectAll("circle.node")
-        .transition()
-        .duration(400)
-        .style("opacity", d => d.topic_id === selectedId ? highlightedNodeOpacity : 0.05)
-        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
-        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+    allNodesData.forEach(d => {
+        const matchesTopic = d.topic_id === selectedId;
+        d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+        d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
+        d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+    });
+    drawMapCanvas();
 }
 d3.selectAll('input[name="topicLens"]').on("change", function() {
     // 1. Aggiorna la variabile globale con il value del bottone cliccato
@@ -1884,8 +2156,8 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
             // Se il topic coincide, massima opacità. Altrimenti quasi trasparenti.
             return d.topic_id === selectedId ? highlightedNodeOpacity : 0.05; 
         })
-        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
-        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+        .style("stroke", d => d.topic_id === selectedId ? selectedNodeStrokeColor : normalNodeStrokeColor)
+        .style("stroke-width", d => d.topic_id === selectedId ? selectedNodeStrokeWidth : normalNodeStrokeWidth);
 
     });
 
@@ -2042,6 +2314,34 @@ function renderTopicBarchart(words) {
 }
 
 function highlightTweetsByWord(word) {
+    if (!word) {
+        allNodesData.forEach(d => {
+            const matchesTopic = d.topic_id === activeTopicSelectionId;
+            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+            d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
+            d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+        });
+        drawMapCanvas();
+        return;
+    }
+
+    const lowerWordForCanvas = word.toLowerCase();
+    allNodesData.forEach(d => {
+        if (d.topic_id !== activeTopicSelectionId) {
+            d._opacity = 0.05;
+            d._stroke = normalNodeStrokeColor;
+            d._strokeWidth = normalNodeStrokeWidth;
+            return;
+        }
+
+        const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWordForCanvas);
+        d._opacity = textContainsWord ? highlightedNodeOpacity : 0.2;
+        d._stroke = textContainsWord ? selectedNodeStrokeColor : normalNodeStrokeColor;
+        d._strokeWidth = textContainsWord ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+    });
+    drawMapCanvas();
+    return;
+
     const dots = d3.selectAll("circle.node"); 
 
     if (!word) {
@@ -2049,8 +2349,8 @@ function highlightTweetsByWord(word) {
         // Ripristiniamo la mappa mostrando solo i tweet del topic selezionato.
         dots.transition().duration(300)
             .style("opacity", d => d.topic_id === activeTopicSelectionId ? highlightedNodeOpacity : 0.05)
-            .style("stroke", d => d.topic_id === activeTopicSelectionId ? "#000" : "none")
-            .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? 1.5 : 0);
+            .style("stroke", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeColor : normalNodeStrokeColor)
+            .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeWidth : normalNodeStrokeWidth);
         return;
     }
 
@@ -2069,14 +2369,14 @@ function highlightTweetsByWord(word) {
             return textContainsWord ? highlightedNodeOpacity : 0.2; 
         })
         .style("stroke", d => {
-            if (d.topic_id !== activeTopicSelectionId) return "none";
+            if (d.topic_id !== activeTopicSelectionId) return normalNodeStrokeColor;
             const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            return textContainsWord ? "#000" : "none"; // Bordo nero solo ai match esatti
+            return textContainsWord ? selectedNodeStrokeColor : normalNodeStrokeColor;
         })
         .style("stroke-width", d => {
-            if (d.topic_id !== activeTopicSelectionId) return 0;
+            if (d.topic_id !== activeTopicSelectionId) return normalNodeStrokeWidth;
             const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            return textContainsWord ? 2 : 0; 
+            return textContainsWord ? selectedNodeStrokeWidth : normalNodeStrokeWidth; 
         });
 }
 
@@ -2106,6 +2406,7 @@ window.addEventListener("resize", () => {
     height = rect.height;
 
     svg.attr("width", width).attr("height", height);
+    resizeMapCanvas();
 
     if (allNodesData && allNodesData.length > 0) {
         const margin = mapMargin;
@@ -2118,13 +2419,16 @@ window.addEventListener("resize", () => {
         brush.extent([[0, 0], [width, height]]);
         brushLayer.call(brush);
 
-        // Riposiziona i nodi base della mappa
-        nodeLayer.selectAll("circle.node")
-            .attr("cx", d => xScale(d.x))
-            .attr("cy", d => yScale(d.y));
-            
         // Elimina i collegamenti temporanei per evitare un offset visivo
         linkLayer.selectAll("*").remove();
+        perturbationTrajectories = [];
+        perturbationVisualNodes = [];
+        allNodesData.forEach(node => {
+            node._perturbed = false;
+            node._canvasX = null;
+            node._canvasY = null;
+            node._fillOverride = null;
+        });
 
         // Ricalcola gli assi considerando lo zoom corrente
         const currentTransform = d3.zoomTransform(svg.node());
@@ -2132,6 +2436,7 @@ window.addEventListener("resize", () => {
             .call(d3.axisBottom(currentTransform.rescaleX(xScale)).ticks(axisTickCount));
         yAxisGroup.attr("transform", `translate(${margin.left},0)`)
             .call(d3.axisLeft(currentTransform.rescaleY(yScale)).ticks(axisTickCount));
+        drawMapCanvas();
 
         // Aggiorna la posizione delle etichette degli assi "UMAP 1" e "UMAP 2"
         svg.selectAll(".axis-label").each(function() {
@@ -2157,4 +2462,3 @@ window.addEventListener("resize", () => {
         renderTopicBarchart(currentTopicWords);
     }
 });
-
