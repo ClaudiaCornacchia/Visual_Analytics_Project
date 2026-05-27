@@ -9,7 +9,8 @@
         body { display: flex; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; margin: 0; overflow: hidden; background-color: #f1f5f9; color: #1e293b; }
 
         /* Layout Principale */
-        #scatterplot-container { width: 65vw; height: 100vh; position: relative; background: #f8fafc; border-right: 2px solid #cbd5e1; }
+        #scatterplot-container { width: 65vw; height: 100vh; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #e2e8f0; border-right: 2px solid #cbd5e1; }
+        #map-panel { position: relative; flex: 1 1 auto; min-height: 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #details-panel { width: 35vw; height: 100vh; padding: 15px; background: #e2e8f0; overflow-y: auto; }
 
         /* Titoli di sezione */
@@ -40,9 +41,6 @@
         .legend-item { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 999px; font-size: 0.84rem; color: #334155; }
         .legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.2); flex: 0 0 auto; }
         .selection-empty { font-size: 0.88rem; color: #64748b; }
-        .selection-chart-toggle { display: inline-flex; gap: 6px; margin-top: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        .selection-chart-btn { border: 1px solid #cbd5e1; background: #ffffff; color: #475569; border-radius: 999px; padding: 5px 10px; font-size: 0.8rem; cursor: pointer; }
-        .selection-chart-btn.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 700; }
 
         /* Contenitore Testi */
         #tw-text { font-size: 15px; line-height: 1.7; background: #e2e8f0; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px; }
@@ -58,7 +56,7 @@
         .perturbation-diff { background: rgba(251, 191, 36, 0.25); border-radius: 4px; padding: 2px 4px; }
 
         /* Controlli Mappa Overlay */
-        #map-toolbar { position: absolute; top: 18px; right: 18px; display: flex; align-items: center; gap: 8px; z-index: 10; }
+        #map-toolbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; z-index: 10; }
         .toolbar-pill { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 2px 8px rgba(15,23,42,0.12); border: 1px solid #cbd5e1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.82rem; }
         .toolbar-pill.icon-btn { width: 36px; padding: 0; font-size: 1rem; }
         .toolbar-pill select { border: none; background: transparent; font-size: 0.82rem; padding: 0; outline: none; }
@@ -67,12 +65,14 @@
         .toolbar-toggle-group { display: inline-flex; gap: 4px; }
         .toolbar-toggle-btn { border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; color: #475569; cursor: pointer; }
         .toolbar-toggle-btn.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; }
-        #map-legend-panel { position: absolute; left: 18px; bottom: 18px; background: rgba(255,255,255,0.96); border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 2px 8px rgba(15,23,42,0.08); padding: 10px 12px; min-width: 220px; z-index: 10; }
-        .map-legend-header { font-size: 0.82rem; font-weight: 700; color: #334155; margin-bottom: 8px; text-transform: uppercase; }
-        .map-legend-label { font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase; }
-        .map-legend-items { display: flex; flex-wrap: wrap; gap: 6px; }
-        .map-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 4px 8px; }
-        .map-legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.15); }
+        #map-legend-panel { flex: 0 0 auto; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 8px 10px; display: flex; align-items: center; gap: 12px; overflow-x: auto; }
+        .map-legend-topline { display: flex; align-items: baseline; gap: 8px; margin-bottom: 0; flex: 0 0 auto; }
+        .map-legend-header { font-size: 0.82rem; font-weight: 700; color: #334155; text-transform: uppercase; }
+        .map-legend-label { font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase; }
+        .map-total-count { font-size: 0.78rem; color: #64748b; margin-bottom: 0; flex: 0 0 auto; white-space: nowrap; }
+        .map-legend-items { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 7px; min-width: 0; }
+        .map-legend-item { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 5px 8px; width: auto; white-space: nowrap; flex: 0 0 auto; }
+        .map-legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.15); flex: 0 0 auto; }
         .chart-placeholder { min-height: 120px; display: flex; align-items: center; justify-content: center; text-align: center; color: #94a3b8; font-size: 0.9rem; }
         .chart-tooltip { position: fixed; pointer-events: none; z-index: 1000; background: rgba(15, 23, 42, 0.94); color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24); opacity: 0; transition: opacity 0.12s ease; }
         .chart-tooltip strong { display: block; margin-bottom: 2px; color: #ffffff; }
@@ -80,9 +80,9 @@
         /* SVG Mappa */
         #map { cursor: default; display: block; width: 100%; height: 100%; }
         body.panning #map { cursor: grabbing !important; }
-        circle.node { cursor: pointer; opacity: 0.7; stroke: none; stroke-width: 0; }
-        circle.node:hover { opacity: 1; stroke-width: 0; stroke: none; }
-        circle.node.selected { stroke: #ffffff; stroke-width: 2px; opacity: 1 !important; }
+        circle.node { cursor: pointer; opacity: 0.72; stroke: rgba(15, 23, 42, 0.38); stroke-width: 0.45px; }
+        circle.node:hover { opacity: 0.86; stroke: #111827; stroke-width: 0.8px; }
+        circle.node.selected { stroke: #111827 !important; stroke-width: 1.15px !important; opacity: 0.86 !important; }
         circle.node.selection-muted { opacity: 0.14 !important; }
         circle.node.dimmed { opacity: 0.1 !important; }
 
@@ -93,7 +93,7 @@
         .trajectory  { stroke-width: 2px; fill: none; }
         .brush .selection { stroke: #475569; stroke-dasharray: 4,4; fill: rgba(148, 163, 184, 0.2); }
         .brush .overlay { cursor: crosshair; }
-        .axis-label { font-size: 15px; font-weight: bold; fill: #475569; text-anchor: middle; }
+        .axis-label { font-size: 15px; font-weight: bold; fill: #0f172a; text-anchor: middle; paint-order: stroke; stroke: #f8fafc; stroke-width: 3px; stroke-linejoin: round; }
         
         /* Stile per le barre del TF-IDF */
         .tfidf-bar {
@@ -162,12 +162,17 @@
             <button id="btn-pan-selection" class="toolbar-pill icon-btn" title="Center selection" disabled>◎</button>
             <button id="btn-reset-zoom" class="toolbar-pill icon-btn" title="Reset view">↺</button>
         </div>
+        <div id="map-panel">
+        <svg id="map"></svg>
+        </div>
         <div id="map-legend-panel">
-            <div class="map-legend-header">Legend</div>
-            <div class="map-legend-label" id="map-legend-label">Sentiment</div>
+            <div class="map-legend-topline">
+                <div class="map-legend-header">Legend</div>
+                <div class="map-legend-label" id="map-legend-label">Sentiment</div>
+            </div>
+            <div class="map-total-count" id="map-total-count">Total: 0 tweets</div>
             <div id="map-legend-items" class="map-legend-items"></div>
         </div>
-        <svg id="map"></svg>
     </div>
 
     <div id="details-panel">
@@ -178,8 +183,7 @@
                 <span>SELECTION DETAILS</span>
             </div>
             <div style="margin-bottom: 10px; font-size: 0.92rem;">
-                <strong>TWEET ID:</strong> <span id="tw-id">-</span> &nbsp;&nbsp;|&nbsp;&nbsp;
-                <strong>SENTIMENT:</strong> <span id="tw-sentiment">-</span>
+                <div><strong>TWEET ID:</strong> <span id="tw-id">-</span></div>
             </div>
             <div style="margin-bottom: 12px;">
                 <div style="font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Original Text</div>
@@ -187,10 +191,10 @@
             </div>
             <div class="selection-summary">
                 <div class="summary-line"><strong>Selection:</strong> <span id="selection-count">0 tweets selected</span></div>
-                <div class="selection-chart-toggle">
-                    <button id="selection-view-sentiment" class="selection-chart-btn active" type="button">Sentiments</button>
-                    <button id="selection-view-airline" class="selection-chart-btn" type="button">Airlines</button>
-                    <button id="selection-view-topic" class="selection-chart-btn" type="button">Topics</button>
+                <div style="display: grid; gap: 6px; margin-bottom: 12px; font-size: 0.92rem;">
+                    <div><strong>SENTIMENT:</strong> <span id="tw-sentiment">-</span></div>
+                    <div><strong>AIRLINE:</strong> <span id="tw-airline">-</span></div>
+                    <div><strong>TOPIC:</strong> <span id="tw-topic">-</span></div>
                 </div>
                 <div id="selection-distribution-chart" class="chart-placeholder">
                     <em>Select one or more points to see the selection distribution.</em>
@@ -296,11 +300,27 @@
                     <select id="topic-selector" size="5" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; outline: none; cursor: pointer;">
                         <!-- Verrà popolato da Javascript -->
                     </select>
-                </div>
-                
-                <!-- Il grafico D3 per le parole del Topic -->
-                <div id="topic-barchart" style="flex: 1; min-height: 120px;">
-                    <em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see keywords...</em>
+                </div><div style="flex: 1; display: flex; flex-direction: column;">
+                    
+                    <div id="topic-lens-selector" style="margin-bottom: 12px; display: flex; gap: 15px; font-size: 0.85rem; color: #475569; justify-content: center; align-items: center;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="radio" name="topicLens" value="words_raw">
+                            <span>1</span>
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="radio" name="topicLens" value="words_no_brands">
+                            <span>2</span>
+                        </label>
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                            <input type="radio" name="topicLens" value="words_operational" checked>
+                            <span style="font-weight: 600;">3</span>
+                        </label>
+                    </div>
+                    
+                    <div id="topic-barchart" style="flex: 1; min-height: 120px; display: flex; align-items: center; justify-content: center;">
+                        <em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see keywords...</em>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -343,6 +363,6 @@
        
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=selection-details-2"></script>
 </body>
 </html>

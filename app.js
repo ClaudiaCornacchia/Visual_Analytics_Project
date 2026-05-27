@@ -31,20 +31,18 @@ const sentimentColors = {
 const manualTopicNames = {
     "-1": "Outliers",
 
-    "0": "Cancellations", // service, cancelled, customer, hours
-    "1": "Fleet",                // fleets, fleek, hold
-    "2": "Website Issues",                            // website, site, check, applied
-    "3": "Cancelled Flights",                         // cancelled flight
-    "4": "Customer Service",                          // service, customer service
-    "5": "Telephone hold",                      // hold, phone, hour
-    "6": "Customer care",                    // finally, dmed, think
-    "7": "Companion Pass and Travel",                 // companion pass, nashville
-    "8": "Inflight Wi-Fi",                            // wifi, inflight wifi
-    "9": "Route and Results Sharing",                 // shares, results, route, country
-    "10": "Destination Dragons Promotion",            // destinationdragons, imaginedragons
-    "11": "En Route Flights ",                 // flytpa, enroute, departs
-    "12": "Email ",           // email, question, message
-    "13": "CEO"                // wall, ceo, jetblues ceo
+    "0": "Flight Cancellations",              // flight, cancelled, cancelled flightled
+    "1": "Flight Delays",                     // delayed, late, plane, flight
+    "2": "Call Center Hold Times",          // hold, phone, hours, hung
+    "3": "General Feedback",                  // flight, hold, great, good (mixed feedback)
+    "4": "Lost Luggage",            // bag, luggage, lost, bags, baggage
+    "5": "Customer Service",                  // customer, service, weather
+    "6": "Promotions",       // destinationdragons, imaginedragons, companion pass
+    "7": "Emails",            // email, appreciate, confirmation, message
+    "8": "Inflight Wi-Fi",                    // wifi, inflight wifi, slow, power
+    "9": "En Route Updates",                  // flytpa, enroute, departs, arrives
+    "10": "Corporate",          // wall, ceo, street, wall street
+    "11": "Crew Praise"                       // crew, flt, great, professionals
 };
 
 const perturbationColors = {
@@ -62,7 +60,7 @@ const perturbationColors = {
 
 const keywordHighlightColor = "#facc15";
 
-const mapContainer = document.getElementById("scatterplot-container");
+const mapContainer = document.getElementById("map-panel");
 const rect = mapContainer.getBoundingClientRect();
 let width = rect.width;
 let height = rect.height;
@@ -105,9 +103,26 @@ const interactionClickBtn = document.getElementById("interaction-click");
 const interactionBrushBtn = document.getElementById("interaction-brush");
 const selectionPointBtn = document.getElementById("selection-point");
 const selectionClusterBtn = document.getElementById("selection-cluster");
-const selectionViewSentimentBtn = document.getElementById("selection-view-sentiment");
-const selectionViewAirlineBtn = document.getElementById("selection-view-airline");
-const selectionViewTopicBtn = document.getElementById("selection-view-topic");
+
+const clusterEncodingToggle = document.createElement("div");
+clusterEncodingToggle.id = "cluster-encoding-toggle";
+clusterEncodingToggle.className = "toolbar-toggle";
+clusterEncodingToggle.title = "Cluster grouping";
+clusterEncodingToggle.style.display = "none";
+clusterEncodingToggle.style.cssText = "display: none; align-items: center; gap: 8px; margin: 10px 0 12px; flex-wrap: wrap;";
+clusterEncodingToggle.innerHTML = `
+    <span class="toolbar-toggle-label">Cluster</span>
+    <div class="toolbar-toggle-group">
+        <button id="cluster-by-sentiment" class="toolbar-toggle-btn active" type="button" data-encoding="sentiment">Sentiment</button>
+        <button id="cluster-by-airline" class="toolbar-toggle-btn" type="button" data-encoding="airline">Airline</button>
+        <button id="cluster-by-topic" class="toolbar-toggle-btn" type="button" data-encoding="topic">Topic</button>
+    </div>
+`;
+const selectionDistributionChart = document.getElementById("selection-distribution-chart");
+if (selectionDistributionChart && selectionDistributionChart.parentNode) {
+    selectionDistributionChart.parentNode.insertBefore(clusterEncodingToggle, selectionDistributionChart);
+}
+const clusterEncodingButtons = Array.from(clusterEncodingToggle.querySelectorAll("[data-encoding]"));
 
 const centerButton = document.createElement("button");
 centerButton.id = "btn-pan-selection";
@@ -139,7 +154,6 @@ let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
 let interactionMode = "click";
 let selectionMode = "point";
-let currentSelectionChartView = "sentiment";
 let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
@@ -149,7 +163,16 @@ let perturbationResults = [];
 let activePerturbationKey = null;
 let targetWordForPerturbation = null;
 
+let currentTopicLens = "words_operational";
+
 const baseNodeRadius = 6;
+const normalNodeOpacity = 0.72;
+const highlightedNodeOpacity = 0.86;
+const normalNodeStrokeColor = "rgba(15, 23, 42, 0.38)";
+const normalNodeStrokeWidth = 0.45;
+const selectedNodeStrokeColor = "#111827";
+const selectedNodeStrokeWidth = 1.15;
+const mapMargin = { top: 26, right: 34, bottom: 86, left: 72 };
 const axisTickCount = 8;
 const perturbationLabels = {
     dict_synonym: "Synonym",
@@ -205,7 +228,7 @@ function updateBertopicSelectionSummary(nodes) {
     }
 
     // Render the bar chart for the dominant topic's keywords
-    renderTopicBarchart(topicData.words);
+    renderTopicBarchart(topicData[currentTopicLens]);
 }
 
 function getDominantTopicId(nodes) {
@@ -229,7 +252,7 @@ function getDominantTopicId(nodes) {
 }
 
 function getClusterKey(node) {
-    switch (currentSelectionChartView) {
+    switch (currentColorEncoding) {
         case "sentiment":
             return node.sentiment;
         case "airline":
@@ -239,6 +262,16 @@ function getClusterKey(node) {
         default:
             return node.topic_id;
     }
+}
+
+function getNodeAirlineLabel(node) {
+    return node.airline || node.Airline || node.carrier || "Unknown";
+}
+
+function getNodeTopicLabel(node) {
+    const rawTopicId = node.topic_id ?? node.topicId ?? node.Topic ?? node.topic;
+    const topicId = normalizeTopicId(rawTopicId);
+    return node.topic_label || node.topicLabel || getTopicLabel(topicId);
 }
 
 function getDominantClusterKey(nodes) {
@@ -310,11 +343,34 @@ function reapplySelectionMode() {
     selectNodes(resolvedNodes, { append: false, toggle: false });
 }
 
+function setClusterEncoding(encoding) {
+    currentColorEncoding = encoding;
+    if (colorEncodingSelect) {
+        colorEncodingSelect.value = encoding;
+    }
+    syncModeButtons();
+    updateNodeColors();
+    renderMapLegends(selectedNodesData);
+
+    if (selectionMode === "cluster" && selectedNodesData.length) {
+        reapplySelectionMode();
+        return;
+    }
+
+    renderSelectionDistributionChart(selectedNodesData);
+}
+
 function syncModeButtons() {
     interactionClickBtn.classList.toggle("active", interactionMode === "click");
     interactionBrushBtn.classList.toggle("active", interactionMode === "brush");
     selectionPointBtn.classList.toggle("active", selectionMode === "point");
     selectionClusterBtn.classList.toggle("active", selectionMode === "cluster");
+    if (clusterEncodingToggle) {
+        clusterEncodingToggle.style.display = interactionMode === "click" && selectionMode === "cluster" ? "flex" : "none";
+    }
+    clusterEncodingButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.encoding === currentColorEncoding);
+    });
 }
 
 function setResetButtonVisibility(visible) {
@@ -550,42 +606,153 @@ async function parseApiResponse(response) {
     return parsed;
 }
 
-function syncSelectionChartButtons() {
-    if (selectionViewSentimentBtn) selectionViewSentimentBtn.classList.toggle("active", currentSelectionChartView === "sentiment");
-    if (selectionViewAirlineBtn) selectionViewAirlineBtn.classList.toggle("active", currentSelectionChartView === "airline");
-    if (selectionViewTopicBtn) selectionViewTopicBtn.classList.toggle("active", currentSelectionChartView === "topic");
-}
-
-function getSelectionDistributionConfig(nodes) {
-    if (currentSelectionChartView === "airline") {
-        return {
+function getSelectionDistributionConfigs(nodes) {
+    return {
+        sentiment: {
+            title: "Sentiments",
+            data: d3.rollups(nodes, values => values.length, d => d.sentiment).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+            labelAccessor: label => label,
+            colorAccessor: label => sentimentColors[label] || "#64748b"
+        },
+        airline: {
             title: "Airlines",
             data: d3.rollups(nodes, values => values.length, d => d.airline).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
             labelAccessor: label => label,
             colorAccessor: label => airlineColorScale(label)
-        };
-    }
-
-    if (currentSelectionChartView === "topic") {
-        return {
+        },
+        topic: {
             title: "Topics",
             data: d3.rollups(nodes, values => values.length, d => d.topic_id).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
             labelAccessor: label => getTopicLabel(label),
             colorAccessor: label => label === -1 ? "#cbd5e1" : topicColorScale(label)
-        };
-    }
-
-    return {
-        title: "Sentiments",
-        data: d3.rollups(nodes, values => values.length, d => d.sentiment).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
-        labelAccessor: label => label,
-        colorAccessor: label => sentimentColors[label] || "#64748b"
+        }
     };
 }
 
-function renderSelectionDistributionChart(nodes) {
-    syncSelectionChartButtons();
+function renderClusterVerticalBarChart(container, nodes) {
+    const configs = getSelectionDistributionConfigs(nodes);
+    const config = configs[currentColorEncoding] || configs.sentiment;
+    const chartNode = container.node();
+    const containerWidth = chartNode ? chartNode.getBoundingClientRect().width : 280;
+    const margin = { top: 28, right: 12, bottom: 54, left: 42 };
+    const chartWidth = Math.max(containerWidth || 280, 260);
+    const chartHeight = 220;
+    const innerWidth = chartWidth - margin.left - margin.right;
+    const innerHeight = chartHeight - margin.top - margin.bottom;
 
+    const svg = container
+        .append("svg")
+        .attr("width", chartWidth)
+        .attr("height", chartHeight)
+        .attr("viewBox", `0 0 ${chartWidth} ${chartHeight}`)
+        .style("width", "100%")
+        .style("height", "auto");
+
+    svg.append("text")
+        .attr("x", margin.left)
+        .attr("y", 14)
+        .attr("fill", "#334155")
+        .attr("font-size", "12px")
+        .attr("font-weight", "700")
+        .attr("text-transform", "uppercase")
+        .text(`SELECTED ${config.title.toUpperCase()}`);
+
+    const x = d3.scaleBand()
+        .domain(config.data.map(([key]) => String(key)))
+        .range([0, innerWidth])
+        .padding(0.28);
+
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(config.data, ([, count]) => count) || 1])
+        .nice()
+        .range([innerHeight, 0]);
+
+    const g = svg.append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    g.append("g")
+        .call(d3.axisLeft(y).ticks(4).tickSize(-innerWidth))
+        .call(axis => axis.select(".domain").remove())
+        .call(axis => axis.selectAll(".tick line").attr("stroke", "#e2e8f0"))
+        .call(axis => axis.selectAll(".tick text").attr("fill", "#64748b").attr("font-size", "11px"));
+
+    g.append("g")
+        .attr("transform", `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(x).tickFormat(key => {
+            const rawKey = config.data.find(([label]) => String(label) === key)?.[0];
+            const label = config.labelAccessor(rawKey);
+            return label.length > 12 ? `${label.slice(0, 11)}...` : label;
+        }))
+        .call(axis => axis.select(".domain").attr("stroke", "#cbd5e1"))
+        .call(axis => axis.selectAll(".tick line").remove())
+        .call(axis => axis.selectAll(".tick text")
+            .attr("fill", "#475569")
+            .attr("font-size", "11px")
+            .attr("transform", "rotate(-28)")
+            .style("text-anchor", "end"));
+
+    g.selectAll("rect")
+        .data(config.data)
+        .enter()
+        .append("rect")
+        .attr("x", ([key]) => x(String(key)))
+        .attr("y", ([, count]) => y(count))
+        .attr("width", x.bandwidth())
+        .attr("height", ([, count]) => innerHeight - y(count))
+        .attr("rx", 3)
+        .attr("fill", ([key]) => config.colorAccessor(key))
+        .on("mousemove", function (event, [key, count]) {
+            topicDistributionTooltip
+                .style("opacity", 1)
+                .style("left", `${event.clientX + 12}px`)
+                .style("top", `${event.clientY + 12}px`)
+                .html(`<strong>${config.labelAccessor(key)}</strong>${count} tweet${count === 1 ? "" : "s"}`);
+        })
+        .on("mouseleave", () => topicDistributionTooltip.style("opacity", 0));
+
+    g.selectAll("text.bar-value")
+        .data(config.data)
+        .enter()
+        .append("text")
+        .attr("class", "bar-value")
+        .attr("x", ([key]) => x(String(key)) + x.bandwidth() / 2)
+        .attr("y", ([, count]) => y(count) - 6)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#334155")
+        .attr("font-size", "11px")
+        .attr("font-weight", "700")
+        .text(([, count]) => count);
+}
+
+function renderBrushClusterSummary(container, nodes) {
+    const configs = getSelectionDistributionConfigs(nodes);
+    const config = configs[currentColorEncoding] || configs.sentiment;
+    const clusterKey = getClusterKey(nodes[0]);
+    const label = config.labelAccessor(clusterKey);
+    const color = config.colorAccessor(clusterKey);
+    const typeLabel = currentColorEncoding === "airline"
+        ? "Airline"
+        : (currentColorEncoding === "topic" ? "Topic" : "Sentiment");
+
+    const summary = document.createElement("div");
+    summary.style.cssText = "display: flex; align-items: center; gap: 12px; padding: 10px 0; color: #334155;";
+
+    const swatch = document.createElement("span");
+    swatch.style.cssText = `width: 14px; height: 14px; border-radius: 50%; background: ${color}; border: 1px solid rgba(15,23,42,0.35); flex-shrink: 0;`;
+
+    const text = document.createElement("div");
+    text.style.cssText = "display: grid; gap: 2px; font-size: 0.9rem;";
+    text.innerHTML = `
+        <strong>${typeLabel}: ${label}</strong>
+        <span>${nodes.length} tweet${nodes.length === 1 ? "" : "s"} total</span>
+    `;
+
+    summary.appendChild(swatch);
+    summary.appendChild(text);
+    container.node().appendChild(summary);
+}
+
+function renderSelectionDistributionChart(nodes) {
     const container = d3.select("#selection-distribution-chart");
     container.html("");
 
@@ -597,148 +764,43 @@ function renderSelectionDistributionChart(nodes) {
         return;
     }
 
-    const config = getSelectionDistributionConfig(nodes);
-    const chartData = config.data.map(([key, count]) => ({
-        key,
-        label: config.labelAccessor(key),
-        count,
-        color: config.colorAccessor(key)
-    }));
-
-    const showHistogram = (
-        (interactionMode === "brush" && selectionMode === "point")
-    ) && (currentSelectionChartView === "sentiment" || currentSelectionChartView === "airline" || (interactionMode === "brush" && selectionMode === "point" && currentSelectionChartView === "topic"));
-
     container.attr("class", "");
 
-    if (showHistogram) {
-        const total = nodes.length;
-        const chartWidth = Math.max(document.getElementById("selection-distribution-chart").clientWidth || 0, 320);
-        const chartHeight = 250;
-        const margin = { top: 18, right: 18, bottom: 78, left: 54 };
-        const innerWidth = chartWidth - margin.left - margin.right;
-        const innerHeight = chartHeight - margin.top - margin.bottom;
-
-        const svg = container.append("svg")
-            .attr("width", chartWidth)
-            .attr("height", chartHeight)
-            .attr("viewBox", `0 0 ${chartWidth} ${chartHeight}`)
-            .attr("preserveAspectRatio", "xMidYMid meet");
-
-        const chart = svg.append("g")
-            .attr("transform", `translate(${margin.left},${margin.top})`);
-
-        const x = d3.scaleBand()
-            .domain(chartData.map(d => d.label))
-            .range([0, innerWidth])
-            .padding(0.22);
-
-        const y = d3.scaleLinear()
-            .domain([0, d3.max(chartData, d => (d.count / total) * 100) || 1])
-            .nice()
-            .range([innerHeight, 0]);
-
-        chart.append("g")
-            .attr("transform", `translate(0,${innerHeight})`)
-            .call(d3.axisBottom(x))
-            .selectAll("text")
-            .style("font-size", "11px")
-            .style("fill", "#475569")
-            .attr("transform", "rotate(-24)")
-            .style("text-anchor", "end");
-
-        chart.append("g")
-            .call(d3.axisLeft(y).ticks(5).tickFormat(d => `${d}%`))
-            .style("font-size", "11px")
-            .style("color", "#475569");
-
-        chart.selectAll(".domain, .tick line")
-            .attr("stroke", "#cbd5e1");
-
-        chart.selectAll(".selection-distribution-bar")
-            .data(chartData)
-            .enter()
-            .append("rect")
-            .attr("class", "selection-distribution-bar")
-            .attr("x", d => x(d.label))
-            .attr("y", d => y((d.count / total) * 100))
-            .attr("width", x.bandwidth())
-            .attr("height", d => innerHeight - y((d.count / total) * 100))
-            .attr("rx", 6)
-            .attr("fill", d => d.color)
-            .on("mousemove", function (event, d) {
-                topicDistributionTooltip
-                    .style("opacity", 1)
-                    .html(`<strong>${config.title}: ${d.label}</strong>${d.count} tweets<br>${((d.count / total) * 100).toFixed(1)}% of selection`)
-                    .style("left", `${event.clientX + 14}px`)
-                    .style("top", `${event.clientY + 14}px`);
-            })
-            .on("mouseleave", function () {
-                topicDistributionTooltip.style("opacity", 0);
-            });
-
-        chart.selectAll(".selection-distribution-label")
-            .data(chartData)
-            .enter()
-            .append("text")
-            .attr("class", "selection-distribution-label")
-            .attr("x", d => x(d.label) + x.bandwidth() / 2)
-            .attr("y", d => y((d.count / total) * 100) - 8)
-            .attr("text-anchor", "middle")
-            .style("font-size", "11px")
-            .style("font-weight", "700")
-            .style("fill", "#334155")
-            .text(d => `${((d.count / total) * 100).toFixed(0)}%`);
-
+    if (selectionMode === "cluster") {
+        if (interactionMode === "brush") {
+            renderBrushClusterSummary(container, nodes);
+        }
         return;
     }
 
-    const titleDiv = document.createElement("div");
-    titleDiv.style.cssText = "font-size: 0.85rem; font-weight: 700; color: #334155; margin-bottom: 12px; text-transform: uppercase;";
-    titleDiv.innerText = `SELECTED ${config.title.toUpperCase()}`;
-    container.node().appendChild(titleDiv);
-
-    const legendDiv = document.createElement("div");
-    legendDiv.style.cssText = "display: flex; flex-direction: column; gap: 8px;";
-
-    chartData.forEach(item => {
-        const itemDiv = document.createElement("div");
-        itemDiv.style.cssText = "display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: #334155;";
-
-        const swatch = document.createElement("div");
-        swatch.style.cssText = `width: 12px; height: 12px; border-radius: 50%; background-color: ${item.color}; flex-shrink: 0;`;
-
-        const label = document.createElement("span");
-        const showCount = !(nodes.length === 1 && item.count === 1);
-        label.innerText = showCount ? `${item.label} (${item.count})` : item.label;
-
-        itemDiv.appendChild(swatch);
-        itemDiv.appendChild(label);
-        legendDiv.appendChild(itemDiv);
-    });
-
-    container.node().appendChild(legendDiv);
+    container.html("");
 }
 
 function renderMapLegends(nodes = []) {
     const legendLabel = document.getElementById("map-legend-label");
     const legendItems = document.getElementById("map-legend-items");
+    const totalCount = document.getElementById("map-total-count");
+    const legendSource = allNodesData.length ? allNodesData : nodes;
+
+    if (totalCount) {
+        totalCount.innerText = `Total: ${legendSource.length} tweet${legendSource.length === 1 ? "" : "s"}`;
+    }
 
     let legendData;
     if (currentColorEncoding === "airline") {
         legendLabel.innerText = "Airline";
-        legendData = nodes.length
-            ? d3.rollups(nodes, values => values.length, d => d.airline)
+        legendData = legendSource.length
+            ? d3.rollups(legendSource, values => values.length, d => d.airline)
             : airlineColorScale.domain().map(label => [label, null]);
     } else if (currentColorEncoding === "topic") {
         legendLabel.innerText = "Topic";
-        legendData = nodes.length
-            ? d3.rollups(nodes, values => values.length, d => d.topic_id).sort((a, b) => a[0] - b[0])
+        legendData = legendSource.length
+            ? d3.rollups(legendSource, values => values.length, d => d.topic_id).sort((a, b) => a[0] - b[0])
             : [-1, ...topicColorScale.domain()].map(label => [label, null]);
     } else {
         legendLabel.innerText = "Sentiment";
-        legendData = nodes.length
-            ? d3.rollups(nodes, values => values.length, d => d.sentiment)
+        legendData = legendSource.length
+            ? d3.rollups(legendSource, values => values.length, d => d.sentiment)
             : Object.keys(sentimentColors).map(label => [label, null]);
     }
 
@@ -749,7 +811,7 @@ function renderMapLegends(nodes = []) {
         return `
         <div class="map-legend-item">
             <span class="map-legend-swatch" style="background:${color};"></span>
-            <span>${displayLabel}${count !== null ? ` (${count})` : ""}</span>
+            <span>${displayLabel}</span>
         </div>
         `;
     }).join("");
@@ -757,10 +819,14 @@ function renderMapLegends(nodes = []) {
 
 function updateSelectionUI() {
     const selectedIds = new Set(selectedNodesData.map(node => node.id));
+    const selectionAttributeGrid = document.getElementById("tw-sentiment")?.closest("div")?.parentElement;
 
     nodeLayer.selectAll("circle.node")
         .classed("selected", d => selectedIds.has(d.id))
         .classed("selection-muted", d => selectedIds.size > 0 && !selectedIds.has(d.id))
+        .style("opacity", d => selectedIds.has(d.id) ? highlightedNodeOpacity : normalNodeOpacity)
+        .style("stroke", d => selectedIds.has(d.id) ? selectedNodeStrokeColor : normalNodeStrokeColor)
+        .style("stroke-width", d => selectedIds.has(d.id) ? selectedNodeStrokeWidth : normalNodeStrokeWidth)
         .each(function (d) {
             if (selectedIds.has(d.id)) {
                 d3.select(this).raise();
@@ -779,10 +845,15 @@ function updateSelectionUI() {
     renderSelectionDistributionChart(selectedNodesData);
     renderMapLegends(selectedNodesData);
     updateBertopicSelectionSummary(selectedNodesData);
+    if (selectionAttributeGrid) {
+        selectionAttributeGrid.style.display = singleSelection ? "grid" : "none";
+    }
 
     if (!hasSelection) {
         document.getElementById("tw-id").innerText = "-";
         document.getElementById("tw-sentiment").innerText = "-";
+        document.getElementById("tw-airline").innerText = "-";
+        document.getElementById("tw-topic").innerText = "-";
         document.getElementById("tw-text-simple").innerText = "Select a point on the map to see token weights...";
         document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
@@ -795,6 +866,8 @@ function updateSelectionUI() {
     if (!singleSelection) {
         document.getElementById("tw-id").innerText = "Multiple";
         document.getElementById("tw-sentiment").innerText = "Mixed";
+        document.getElementById("tw-airline").innerText = "Mixed";
+        document.getElementById("tw-topic").innerText = "Mixed";
         document.getElementById("tw-text-simple").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         document.getElementById("tw-text").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         d3.select("#heatmap-container").html("<em>Heatmap available for a single selected tweet.</em>");
@@ -805,6 +878,8 @@ function updateSelectionUI() {
     const node = selectedNodesData[0];
     document.getElementById("tw-id").innerText = node.id;
     document.getElementById("tw-sentiment").innerText = node.sentiment;
+    document.getElementById("tw-airline").innerText = getNodeAirlineLabel(node);
+    document.getElementById("tw-topic").innerText = getNodeTopicLabel(node);
     renderTokenAnalysis(node.text);
     //renderHeatmap(node.text);
     // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
@@ -830,8 +905,9 @@ function clearSelection() {
             if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
             return null;
         })
-        .style("stroke", null)
-        .style("stroke-width", null);
+        .style("opacity", normalNodeOpacity)
+        .style("stroke", normalNodeStrokeColor)
+        .style("stroke-width", normalNodeStrokeWidth);
 
     targetWordForPerturbation = null;
     if (document.getElementById("target-word-info")) document.getElementById("target-word-info").style.display = "none";
@@ -934,7 +1010,11 @@ function updatePanelVisibility() {
     const tfidfPanel = document.getElementById("tfidf-panel");
     const bertopicPanel = document.getElementById("bertopic-card");
     
-    if (interactionMode === "click" && selectionMode === "point") {
+    if (selectionMode === "cluster") {
+        if (tokenPanel) tokenPanel.style.display = "none";
+        if (tfidfPanel) tfidfPanel.style.display = "block";
+        if (bertopicPanel) bertopicPanel.style.display = "block";
+    } else if (interactionMode === "click" && selectionMode === "point") {
         if (tokenPanel) tokenPanel.style.display = "block";
         if (tfidfPanel) tfidfPanel.style.display = "none";
         if (bertopicPanel) bertopicPanel.style.display = "none";
@@ -946,25 +1026,29 @@ function updatePanelVisibility() {
 }
 
 function setInteractionMode(mode) {
+    const modeChanged = interactionMode !== mode;
     interactionMode = mode;
     setBrushMode(mode === "brush");
     if (mode !== "brush") {
         brushLayer.call(brush.move, null);
     }
-    syncModeButtons();
-    if (selectionMode === "cluster") {
-        reapplySelectionMode();
+    if (modeChanged) {
+        clearSelection();
     }
+    syncModeButtons();
     updatePanelVisibility();
 }
 
 function setSelectionMode(mode) {
+    const modeChanged = selectionMode !== mode;
     selectionMode = mode;
     if (mode === "point") {
         originalClickedNode = null;
     }
+    if (modeChanged) {
+        clearSelection();
+    }
     syncModeButtons();
-    reapplySelectionMode();
     updatePanelVisibility();
 }
 
@@ -1053,7 +1137,7 @@ d3.csv("base_map.csv", function (d) {
 }).then(function (data) {
     allNodesData = data;
 
-    const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+    const margin = mapMargin;
     const xExtent = d3.extent(data, d => d.x);
     const yExtent = d3.extent(data, d => d.y);
     const xPad = (xExtent[1] - xExtent[0]) * 0.05;
@@ -1091,39 +1175,31 @@ d3.csv("base_map.csv", function (d) {
         .attr("r", bigDataset ? 2.6 : baseNodeRadius)
         .attr("shape-rendering", "crispEdges")
         .attr("data-perturbed", "false")
-        .style("stroke", "none")
-        .style("stroke-width", "0px")
-        .style("opacity", bigDataset ? 0.5 : 0.8)
+        .style("stroke", normalNodeStrokeColor)
+        .style("stroke-width", normalNodeStrokeWidth)
+        .style("opacity", normalNodeOpacity)
         .on("click", function (event, d) {
-            const isMultiAdd = event.ctrlKey || event.metaKey;
-            if (!isMultiAdd) {
-                originalClickedNode = d;
-            }
+            originalClickedNode = d;
             const nodesToSelect = resolveClickSelectionMode([d], d);
-            // Toggle on single click (no modifiers) and on multi-add with modifiers (only in cluster mode)
-            const allowAppend = isMultiAdd && selectionMode === "cluster";
-            selectNodes(nodesToSelect, { append: allowAppend, toggle: true });
+            selectNodes(nodesToSelect, { append: false, toggle: false });
             event.stopPropagation();
         });
 
     svg.append("text")
         .attr("class", "axis-label")
         .attr("x", width / 2)
-        .attr("y", height - 10)
+        .attr("y", height - 28)
         .text("UMAP 1");
 
     svg.append("text")
         .attr("class", "axis-label")
         .attr("transform", "rotate(-90)")
-        .attr("y", 20)
+        .attr("y", 24)
         .attr("x", -height / 2)
         .text("UMAP 2");
 
     colorEncodingSelect.addEventListener("change", event => {
-        currentColorEncoding = event.target.value;
-        updateNodeColors();
-        renderMapLegends(selectedNodesData);
-        renderSelectionDistributionChart(selectedNodesData);
+        setClusterEncoding(event.target.value);
     });
 
     setResetButtonVisibility(false);
@@ -1389,8 +1465,8 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
                     .attr("cx", endX)
                     .attr("cy", endY)
                     .style("fill", arrowColor)
-                    .style("stroke", null)
-                    .style("stroke-width", null);
+                    .style("stroke", normalNodeStrokeColor)
+                    .style("stroke-width", normalNodeStrokeWidth);
             })
             .catch(error => {
                 console.error("Fetch Error:", error);
@@ -1412,8 +1488,9 @@ document.getElementById("btn-clear").addEventListener("click", () => {
             if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
             return null;
         })
-        .style("stroke", null)
-        .style("stroke-width", null);
+        .style("opacity", normalNodeOpacity)
+        .style("stroke", normalNodeStrokeColor)
+        .style("stroke-width", normalNodeStrokeWidth);
 
     document.getElementById("results-area").style.display = selectedNodesData.length ? "block" : "none";
     resetPerturbationResults();
@@ -1451,35 +1528,11 @@ if (selectionClusterBtn) {
     });
 }
 
-if (selectionViewSentimentBtn) {
-    selectionViewSentimentBtn.addEventListener("click", () => {
-        currentSelectionChartView = "sentiment";
-        renderSelectionDistributionChart(selectedNodesData);
-        if (selectedNodesData.length > 0) {
-            reapplySelectionMode();
-        }
+clusterEncodingButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        setClusterEncoding(button.dataset.encoding);
     });
-}
-
-if (selectionViewAirlineBtn) {
-    selectionViewAirlineBtn.addEventListener("click", () => {
-        currentSelectionChartView = "airline";
-        renderSelectionDistributionChart(selectedNodesData);
-        if (selectedNodesData.length > 0) {
-            reapplySelectionMode();
-        }
-    });
-}
-
-if (selectionViewTopicBtn) {
-    selectionViewTopicBtn.addEventListener("click", () => {
-        currentSelectionChartView = "topic";
-        renderSelectionDistributionChart(selectedNodesData);
-        if (selectedNodesData.length > 0) {
-            reapplySelectionMode();
-        }
-    });
-}
+});
 
 if (btnClearSelection) {
     btnClearSelection.addEventListener("click", (event) => {
@@ -1554,9 +1607,9 @@ function clearKeywordHighlight() {
         .style("stroke-width", null);
     nodeLayer.selectAll("circle.node")
         .classed("dimmed", false)
-        .style("opacity", 0.8)
-        .style("stroke", null)
-        .style("stroke-width", null);
+        .style("opacity", normalNodeOpacity)
+        .style("stroke", normalNodeStrokeColor)
+        .style("stroke-width", normalNodeStrokeWidth);
 }
 
 // 2. Funzione per Disegnare e Aggiornare il Grafico
@@ -1670,7 +1723,7 @@ function updateTFIDFChart(data) {
             d3.selectAll("circle.node")
                 .style("opacity", function(nodeData) {
                     const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                    return hasWord ? 1 : 0.05; 
+                    return hasWord ? highlightedNodeOpacity : 0.05; 
                 })
                 .style("stroke", function(nodeData) {
                     const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
@@ -1754,9 +1807,9 @@ function clearTopicSelection() {
 
     renderTopicBarchart(null);
     nodeLayer.selectAll("circle.node")
-        .style("opacity", null)
-        .style("stroke", null)
-        .style("stroke-width", null);
+        .style("opacity", normalNodeOpacity)
+        .style("stroke", normalNodeStrokeColor)
+        .style("stroke-width", normalNodeStrokeWidth);
 }
 
 function applyTopicSelection(selectedId) {
@@ -1765,31 +1818,46 @@ function applyTopicSelection(selectedId) {
     if (!topicData) return;
 
     activeTopicSelectionId = selectedId;
-    renderTopicBarchart(topicData.words);
+    
+    // CRUCIALE: Usiamo [currentTopicLens] invece di ".words"
+    renderTopicBarchart(topicData[currentTopicLens]);
 
     d3.selectAll("circle.node")
         .transition()
         .duration(400)
-        .style("opacity", d => d.topic_id === selectedId ? 1.0 : 0.05)
+        .style("opacity", d => d.topic_id === selectedId ? highlightedNodeOpacity : 0.05)
         .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
         .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
 }
+d3.selectAll('input[name="topicLens"]').on("change", function() {
+    // 1. Aggiorna la variabile globale con il value del bottone cliccato
+    currentTopicLens = this.value; 
 
-// 1. Scarica i dati all'avvio// Usa la tua variabile globale per puntare al server corretto
-fetch(API_BASE_URL + '/api/topics', {
-    method: 'GET',
-    headers: {
-        // Mantiene il bypass per la schermata di sicurezza di Ngrok
-        'ngrok-skip-browser-warning': 'true' 
+    // 2. Se un topic è già selezionato nella mappa, aggiorna subito il grafico!
+    if (activeTopicSelectionId !== null) {
+        const topicData = allTopicsData.find(t => t.id === activeTopicSelectionId);
+        if (topicData) {
+            selectedWordFilter = null; // Resetta la parola cliccata
+            
+            // Ridisegna il barchart con la nuova lente (es. words_raw o words_no_brands)
+            renderTopicBarchart(topicData[currentTopicLens]);
+            
+            // Ripristina la mappa
+            highlightTweetsByWord(null); 
+        }
     }
-})
+});
+
+// 1. Carica i dati statici all'avvio dal file JSON locale
+fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
 .then(res => {
     if (!res.ok) {
-        throw new Error(`Errore Server HTTP: ${res.status}`);
+        throw new Error(`Errore caricamento JSON: ${res.status}`);
     }
     return res.json();
 })
 .then(data => {
+    // Il processing dei dati rimane identico!
     allTopicsData = data.map(topic => ({
         ...topic,
         label: topic.label || getTopicLabel(normalizeTopicId(topic.id))
@@ -1800,21 +1868,21 @@ fetch(API_BASE_URL + '/api/topics', {
     allTopicsData.forEach(topic => {
         selector.append("option")
             .attr("value", topic.id)
-            .text(`${getTopicDisplayName(topic.id, topic.words)} (${topic.count} tweets)`);
+            .text(`${getTopicDisplayName(topic.id, topic.words_operational)} (${topic.count} tweets)`);
     });
 
     // Ascolta il click
     selector.on("change", function() {
         const selectedId = parseInt(this.value);
         const topicData = allTopicsData.find(t => t.id === selectedId);
-        renderTopicBarchart(topicData.words);
+        renderTopicBarchart(topicData[currentTopicLens]);
 
         d3.selectAll("circle.node")
         .transition()
         .duration(400) // Animazione fluida
         .style("opacity", d => {
             // Se il topic coincide, massima opacità. Altrimenti quasi trasparenti.
-            return d.topic_id === selectedId ? 1.0 : 0.05; 
+            return d.topic_id === selectedId ? highlightedNodeOpacity : 0.05; 
         })
         .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
         .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
@@ -1855,13 +1923,14 @@ fetch(API_BASE_URL + '/api/topics', {
 });
 
 
-
 // 2. Funzione helper per ottenere il nome formattato
 function getTopicDisplayName(topicId, wordsArray = []) {
     const manualName = manualTopicNames[topicId] || `Topic ${topicId}`;
     
     return manualName;
 }
+
+
 
 // 3. Disegna il grafico a barre per le parole
 
@@ -1979,7 +2048,7 @@ function highlightTweetsByWord(word) {
         // RESET: Se l'utente clicca di nuovo sulla barra per disattivarla.
         // Ripristiniamo la mappa mostrando solo i tweet del topic selezionato.
         dots.transition().duration(300)
-            .style("opacity", d => d.topic_id === activeTopicSelectionId ? 1.0 : 0.05)
+            .style("opacity", d => d.topic_id === activeTopicSelectionId ? highlightedNodeOpacity : 0.05)
             .style("stroke", d => d.topic_id === activeTopicSelectionId ? "#000" : "none")
             .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? 1.5 : 0);
         return;
@@ -1997,7 +2066,7 @@ function highlightTweetsByWord(word) {
             const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
             
             // 3. Se la contiene = Massima visibilità (1.0). Se non la contiene = Sbiadito (0.2)
-            return textContainsWord ? 1.0 : 0.2; 
+            return textContainsWord ? highlightedNodeOpacity : 0.2; 
         })
         .style("stroke", d => {
             if (d.topic_id !== activeTopicSelectionId) return "none";
@@ -2039,7 +2108,7 @@ window.addEventListener("resize", () => {
     svg.attr("width", width).attr("height", height);
 
     if (allNodesData && allNodesData.length > 0) {
-        const margin = { top: 20, right: 30, bottom: 60, left: 60 };
+        const margin = mapMargin;
         
         // Aggiorna il range delle scale
         xScale.range([margin.left, width - margin.right]);
@@ -2070,7 +2139,7 @@ window.addEventListener("resize", () => {
             if (isYAxis) {
                 d3.select(this).attr("x", -height / 2);
             } else {
-                d3.select(this).attr("x", width / 2).attr("y", height - 10);
+                d3.select(this).attr("x", width / 2).attr("y", height - 28);
             }
         });
     }
@@ -2088,3 +2157,4 @@ window.addEventListener("resize", () => {
         renderTopicBarchart(currentTopicWords);
     }
 });
+
