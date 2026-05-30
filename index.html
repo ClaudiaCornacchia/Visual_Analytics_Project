@@ -9,7 +9,7 @@
         body { display: flex; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 16px; margin: 0; overflow: hidden; background-color: #f1f5f9; color: #1e293b; }
 
         /* Layout Principale */
-        #scatterplot-container { width: 65vw; height: 100vh; padding: 14px; display: flex; flex-direction: column; gap: 10px; background: #e2e8f0; border-right: 2px solid #cbd5e1; }
+        #scatterplot-container { position: relative; width: 65vw; height: 100vh; padding: 8px 14px 14px; display: flex; flex-direction: column; gap: 6px; background: #e2e8f0; border-right: 2px solid #cbd5e1; }
         #map-panel { position: relative; flex: 1 1 auto; min-height: 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #details-panel { width: 35vw; height: 100vh; padding: 15px; background: #e2e8f0; overflow-y: auto; }
 
@@ -49,30 +49,37 @@
         #results-area { flex: 1; background: #e2e8f0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.96rem; }
         .perturbation-output { margin-top: 6px; min-height: 72px; }
         .perturbation-meta { margin-top: 10px; font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
-        .perturbation-carousel { display: flex; gap: 8px; overflow-x: auto; padding-top: 8px; margin-top: 6px; scrollbar-width: thin; }
-        .perturbation-chip { border: 1px solid #cbd5e1; background: #ffffff; color: #334155; border-radius: 999px; padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; cursor: pointer; }
+        .perturbation-carousel { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; padding: 8px 0 4px; margin-top: 6px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+        .perturbation-chip { flex: 0 0 auto; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; border-radius: 999px; padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; cursor: pointer; }
         .perturbation-chip.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
         .perturbation-empty { margin-top: 10px; font-size: 0.86rem; color: #64748b; }
-        .perturbation-diff { background: rgba(251, 191, 36, 0.25); border-radius: 4px; padding: 2px 4px; }
+        .perturbation-diff { background: #facc15; border-radius: 4px; padding: 2px 4px; font-weight: 400; color: #0f172a; }
+        .perturbation-removed { background: #facc15; border-radius: 4px; padding: 2px 4px; font-weight: 400; color: #0f172a; text-decoration: line-through; text-decoration-thickness: 2px; }
 
         /* Controlli Mappa Overlay */
-        #map-toolbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; z-index: 10; }
-        .toolbar-pill { height: 36px; min-width: 36px; padding: 0 10px; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 2px 8px rgba(15,23,42,0.12); border: 1px solid #cbd5e1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.82rem; }
+        #map-toolbar { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; z-index: 10; margin-top: -2px; }
+        .toolbar-pill { height: 32px; min-width: 32px; padding: 0 8px; border-radius: 8px; background: rgba(255,255,255,0.96); box-shadow: 0 2px 8px rgba(15,23,42,0.12); border: 1px solid #cbd5e1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.78rem; }
         .toolbar-pill.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 700; }
-        .toolbar-pill.icon-btn { width: 36px; padding: 0; font-size: 1rem; }
+        .toolbar-pill.icon-btn { width: 32px; padding: 0; font-size: 0.95rem; }
         .toolbar-pill select { border: none; background: transparent; font-size: 0.82rem; padding: 0; outline: none; }
-        .toolbar-toggle { display: flex; align-items: center; gap: 6px; padding: 4px 6px; height: auto; min-height: 36px; }
+        .toolbar-toggle { display: flex; align-items: center; gap: 6px; padding: 3px 6px; height: auto; min-height: 32px; }
         .toolbar-toggle-label { font-size: 0.72rem; font-weight: 700; color: #475569; text-transform: uppercase; white-space: nowrap; }
         .toolbar-toggle-group { display: inline-flex; gap: 4px; }
         .toolbar-toggle-btn { border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 5px 8px; font-size: 0.78rem; color: #475569; cursor: pointer; }
         .toolbar-toggle-btn.active { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; font-weight: 600; }
-        #map-legend-panel { flex: 0 0 auto; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 8px 10px; display: flex; align-items: center; gap: 12px; overflow-x: auto; }
-        .map-legend-topline { display: flex; align-items: baseline; gap: 8px; margin-bottom: 0; flex: 0 0 auto; }
+        #cluster-encoding-toggle { flex-wrap: nowrap !important; gap: 7px !important; margin: 8px 0 10px !important; }
+        #cluster-encoding-toggle .toolbar-toggle-label { font-size: 0.7rem; }
+        #cluster-encoding-toggle .toolbar-toggle-group { gap: 3px; flex-wrap: nowrap; }
+        #cluster-encoding-toggle .toolbar-toggle-btn { padding: 4px 7px; font-size: 0.76rem; }
+        #map-legend-panel { flex: 0 0 82px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 8px 10px; display: flex; align-items: flex-start; gap: 10px; overflow: visible; }
+        .map-legend-topline { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin-bottom: 0; flex: 0 0 auto; min-width: 78px; }
         .map-legend-header { font-size: 0.82rem; font-weight: 700; color: #334155; text-transform: uppercase; }
         .map-legend-label { font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase; }
-        .map-total-count { font-size: 0.78rem; color: #64748b; margin-bottom: 0; flex: 0 0 auto; white-space: nowrap; }
-        .map-legend-items { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 7px; min-width: 0; }
-        .map-legend-item { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 5px 8px; width: auto; white-space: nowrap; flex: 0 0 auto; }
+        .map-total-count { font-size: 0.78rem; color: #64748b; margin-bottom: 0; white-space: nowrap; }
+        #map-legend-panel > .map-total-count { display: none; }
+        .map-legend-items { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px 7px; min-width: 0; align-content: flex-start; flex: 1 1 auto; }
+        .map-legend-item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 999px; padding: 4px 7px; width: auto; white-space: nowrap; flex: 0 0 auto; }
+        .map-legend-item span:last-child { max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .map-legend-swatch { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(15, 23, 42, 0.15); flex: 0 0 auto; }
         .chart-placeholder { min-height: 120px; display: flex; align-items: center; justify-content: center; text-align: center; color: #94a3b8; font-size: 0.9rem; }
         .chart-tooltip { position: fixed; pointer-events: none; z-index: 1000; background: rgba(15, 23, 42, 0.94); color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.35); border-radius: 8px; padding: 8px 10px; font-size: 0.78rem; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24); opacity: 0; transition: opacity 0.12s ease; }
@@ -170,7 +177,6 @@
                 </svg>
             </button>
             <button id="btn-pan-selection" class="toolbar-pill icon-btn" title="Center selection" disabled>◎</button>
-            <button id="btn-reset-zoom" class="toolbar-pill icon-btn" title="Reset view">↺</button>
         </div>
         <div id="map-panel">
         <canvas id="map-canvas"></canvas>
@@ -192,16 +198,17 @@
         <div class="card">
             <div class="card-title">
                 <span>SELECTION DETAILS</span>
+                <span class="map-total-count" id="details-total-count">Total: 0 tweets</span>
             </div>
             <div style="margin-bottom: 10px; font-size: 0.92rem;">
                 <div><strong>TWEET ID:</strong> <span id="tw-id">-</span></div>
             </div>
-            <div style="margin-bottom: 12px;">
+            <div id="original-text-block" style="margin-bottom: 12px;">
                 <div style="font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 6px; text-transform: uppercase;">Original Text</div>
                 <div id="tw-text-simple" style="font-size: 15px; line-height: 1.7; background: #ffffff; padding: 12px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px; color: #334155;">Select a point on the map to see token weights...</div>
             </div>
             <div class="selection-summary">
-                <div class="summary-line"><strong>Selection:</strong> <span id="selection-count">0 tweets selected</span></div>
+                <div id="selection-count-line" class="summary-line"><strong>Selection:</strong> <span id="selection-count">0 tweets selected</span></div>
                 <div style="display: grid; gap: 6px; margin-bottom: 12px; font-size: 0.92rem;">
                     <div><strong>SENTIMENT:</strong> <span id="tw-sentiment">-</span></div>
                     <div><strong>AIRLINE:</strong> <span id="tw-airline">-</span></div>
@@ -313,18 +320,21 @@
                     </select>
                 </div><div style="flex: 1; display: flex; flex-direction: column;">
                     
-                    <div id="topic-lens-selector" style="margin-bottom: 12px; display: flex; gap: 15px; font-size: 0.85rem; color: #475569; justify-content: center; align-items: center;">
-                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <div style="font-size: 0.78rem; color: #64748b; line-height: 1.35; margin-bottom: 8px;">
+                        Choose which keyword preprocessing view to display for the selected topic.
+                    </div>
+                    <div id="topic-lens-selector" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: #475569; align-items: flex-start;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
                             <input type="radio" name="topicLens" value="words_raw">
-                            <span>1</span>
+                            <span>Stop-words</span>
                         </label>
-                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
                             <input type="radio" name="topicLens" value="words_no_brands">
-                            <span>2</span>
+                            <span>Airlines</span>
                         </label>
-                        <label style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
                             <input type="radio" name="topicLens" value="words_operational" checked>
-                            <span style="font-weight: 600;">3</span>
+                            <span style="font-weight: 600;">Stop-words and airlines</span>
                         </label>
                     </div>
                     
