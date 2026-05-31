@@ -1,5 +1,5 @@
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = " https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -69,6 +69,9 @@ const svg = d3.select("#map")
     .attr("width", width)
     .attr("height", height);
 
+const mapCanvas = document.getElementById("map-canvas");
+const mapContext = mapCanvas.getContext("2d");
+
 const zoomGroup = svg.append("g").attr("id", "zoom-group");
 const linkLayer = zoomGroup.append("g").attr("id", "link-layer");
 const nodeLayer = zoomGroup.append("g").attr("id", "node-layer");
@@ -86,6 +89,7 @@ svg.append("defs").append("marker")
     .attr("refY", 0)
     .attr("markerWidth", 6)
     .attr("markerHeight", 6)
+    .attr("markerUnits", "userSpaceOnUse")
     .attr("orient", "auto")
     .append("path")
     .attr("d", "M0,-5L10,0L0,5")
@@ -96,6 +100,7 @@ const btnClear = document.getElementById("btn-clear");
 const btnResetZoom = document.getElementById("btn-reset-zoom");
 const btnZoomSelection = document.getElementById("btn-zoom-selection");
 const btnZoomOut = document.getElementById("btn-zoom-out");
+const btnMapNavigation = document.getElementById("btn-map-navigation");
 let btnPanSelection = document.getElementById("btn-pan-selection");
 const colorEncodingSelect = document.getElementById("color-encoding-select");
 const mapToolbar = document.getElementById("map-toolbar");
@@ -111,7 +116,7 @@ clusterEncodingToggle.title = "Cluster grouping";
 clusterEncodingToggle.style.display = "none";
 clusterEncodingToggle.style.cssText = "display: none; align-items: center; gap: 8px; margin: 10px 0 12px; flex-wrap: wrap;";
 clusterEncodingToggle.innerHTML = `
-    <span class="toolbar-toggle-label">Cluster</span>
+    <span class="toolbar-toggle-label">Select View</span>
     <div class="toolbar-toggle-group">
         <button id="cluster-by-sentiment" class="toolbar-toggle-btn active" type="button" data-encoding="sentiment">Sentiment</button>
         <button id="cluster-by-airline" class="toolbar-toggle-btn" type="button" data-encoding="airline">Airline</button>
@@ -119,7 +124,10 @@ clusterEncodingToggle.innerHTML = `
     </div>
 `;
 const selectionDistributionChart = document.getElementById("selection-distribution-chart");
-if (selectionDistributionChart && selectionDistributionChart.parentNode) {
+const selectionClusterIndicator = document.getElementById("selection-cluster-indicator");
+if (selectionClusterIndicator && selectionClusterIndicator.parentNode) {
+    selectionClusterIndicator.parentNode.insertBefore(clusterEncodingToggle, selectionClusterIndicator);
+} else if (selectionDistributionChart && selectionDistributionChart.parentNode) {
     selectionDistributionChart.parentNode.insertBefore(clusterEncodingToggle, selectionDistributionChart);
 }
 const clusterEncodingButtons = Array.from(clusterEncodingToggle.querySelectorAll("[data-encoding]"));
@@ -130,7 +138,7 @@ centerButton.className = "toolbar-pill";
 centerButton.textContent = "Center";
 centerButton.title = "Center current selection";
 centerButton.disabled = true;
-centerButton.style.minWidth = "78px";
+centerButton.style.minWidth = "58px";
 centerButton.style.fontWeight = "600";
 btnPanSelection.replaceWith(centerButton);
 btnPanSelection = centerButton;
@@ -149,11 +157,15 @@ let xScale;
 let yScale;
 let allNodesData = [];
 let selectedNodesData = [];
+let selectedNodeIds = new Set();
+let brushClusterSourceNodes = [];
+let canvasNodeRadius = 6;
 let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
 let currentColorEncoding = "sentiment";
 let interactionMode = "click";
 let selectionMode = "point";
+let mapNavigationMode = false;
 let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
@@ -162,17 +174,29 @@ let brushModeActive = false;
 let perturbationResults = [];
 let activePerturbationKey = null;
 let targetWordForPerturbation = null;
+let perturbationTrajectories = [];
+let perturbationVisualNodes = [];
 
 let currentTopicLens = "words_operational";
 
 const baseNodeRadius = 6;
 const normalNodeOpacity = 0.72;
 const highlightedNodeOpacity = 0.86;
-const normalNodeStrokeColor = "rgba(15, 23, 42, 0.38)";
-const normalNodeStrokeWidth = 0.45;
+const normalNodeStrokeColor = "rgba(15, 23, 42, 0.78)";
+const normalNodeStrokeWidth = 1.25;
 const selectedNodeStrokeColor = "#111827";
-const selectedNodeStrokeWidth = 1.15;
-const mapMargin = { top: 26, right: 34, bottom: 86, left: 72 };
+const selectedNodeStrokeWidth = 3.0;
+const selectedWordMatchStrokeWidth = 13.0;
+const anchorNodeStrokeWidth = 9.0;
+const perturbationOutlineStrokeWidth = 8.0;
+const inactivePerturbationOpacity = 0.35;
+const keywordNodeStrokeWidth = 2.6;
+const brushSelectedKeywordNodeStrokeWidth = 8.0;
+const bertopicNodeStrokeWidth = 3.8;
+const brushSelectedBertopicNodeStrokeWidth = 8.0;
+const brushPointSelectedNodeStrokeWidth = 4.4;
+const brushPointKeywordNodeStrokeWidth = 4.0;
+const mapMargin = { top: 34, right: 44, bottom: 132, left: 86 };
 const axisTickCount = 8;
 const perturbationLabels = {
     dict_synonym: "Synonym",
@@ -279,7 +303,7 @@ function getDominantClusterKey(nodes) {
 
     nodes.forEach(node => {
         const key = getClusterKey(node);
-        if (key === -1 || key === undefined || key === null) return;
+        if (key === undefined || key === null) return;
         keyCounts.set(key, (keyCounts.get(key) || 0) + 1);
     });
 
@@ -303,7 +327,7 @@ function resolveClickSelectionMode(nodes, originalNode = null) {
 
     const nodeToUse = originalNode || uniqueNodes[0];
     const selectedKey = getClusterKey(nodeToUse);
-    if (selectedKey === -1 || selectedKey === undefined || selectedKey === null) {
+    if (selectedKey === undefined || selectedKey === null) {
         return uniqueNodes;
     }
 
@@ -339,12 +363,23 @@ function resolveSelectionForCurrentMode(nodes, originalNode = null) {
 
 function reapplySelectionMode() {
     if (!selectedNodesData.length) return;
-    const resolvedNodes = resolveSelectionForCurrentMode(selectedNodesData, originalClickedNode);
+    const sourceNodes = interactionMode === "brush" && selectionMode === "cluster" && brushClusterSourceNodes.length
+        ? brushClusterSourceNodes
+        : selectedNodesData;
+    const resolvedNodes = resolveSelectionForCurrentMode(sourceNodes, originalClickedNode);
     selectNodes(resolvedNodes, { append: false, toggle: false });
 }
 
-function setClusterEncoding(encoding) {
+function setClusterEncoding(encoding, options = {}) {
+    const { clearSelectionOnChange = false } = options;
+    const encodingChanged = currentColorEncoding !== encoding;
     currentColorEncoding = encoding;
+    if (encodingChanged) {
+        clearPerturbationState();
+        if (clearSelectionOnChange && selectedNodesData.length) {
+            clearSelection({ resetPerturbations: true });
+        }
+    }
     if (colorEncodingSelect) {
         colorEncodingSelect.value = encoding;
     }
@@ -358,6 +393,7 @@ function setClusterEncoding(encoding) {
     }
 
     renderSelectionDistributionChart(selectedNodesData);
+    updateSelectionClusterIndicator();
 }
 
 function syncModeButtons() {
@@ -366,11 +402,24 @@ function syncModeButtons() {
     selectionPointBtn.classList.toggle("active", selectionMode === "point");
     selectionClusterBtn.classList.toggle("active", selectionMode === "cluster");
     if (clusterEncodingToggle) {
-        clusterEncodingToggle.style.display = interactionMode === "click" && selectionMode === "cluster" ? "flex" : "none";
+        const showEncodingButtons = selectionMode === "cluster"
+            || (interactionMode === "brush" && selectionMode === "point")
+            || (interactionMode === "click" && selectionMode === "point");
+        clusterEncodingToggle.style.display = showEncodingButtons ? "flex" : "none";
     }
     clusterEncodingButtons.forEach(button => {
         button.classList.toggle("active", button.dataset.encoding === currentColorEncoding);
     });
+    if (btnMapNavigation) {
+        btnMapNavigation.classList.toggle("active", mapNavigationMode);
+        btnMapNavigation.setAttribute("aria-pressed", String(mapNavigationMode));
+    }
+}
+
+function setMapNavigationMode(active) {
+    mapNavigationMode = active;
+    setBrushMode(interactionMode === "brush" && !mapNavigationMode);
+    syncModeButtons();
 }
 
 function setResetButtonVisibility(visible) {
@@ -395,6 +444,32 @@ function stopViewTransitions() {
     yAxisGroup.interrupt();
 }
 
+function keepAxesVisible(transform = d3.zoomTransform(svg.node())) {
+    if (!xScale || !yScale) return;
+
+    xAxisGroup
+        .attr("transform", `translate(0,${height - mapMargin.bottom})`)
+        .call(d3.axisBottom(transform.rescaleX(xScale)).ticks(axisTickCount))
+        .style("font-size", "13px");
+
+    yAxisGroup
+        .attr("transform", `translate(${mapMargin.left},0)`)
+        .call(d3.axisLeft(transform.rescaleY(yScale)).ticks(axisTickCount))
+        .style("font-size", "13px");
+
+    svg.select("#umap-x-label")
+        .attr("x", width / 2)
+        .attr("y", height - mapMargin.bottom + 60);
+
+    svg.select("#umap-y-label")
+        .attr("x", -height / 2)
+        .attr("y", 24);
+
+    xAxisGroup.raise();
+    yAxisGroup.raise();
+    svg.selectAll(".axis-label").raise();
+}
+
 function applyZoomTransform(transform, duration = 0) {
     stopViewTransitions();
 
@@ -416,45 +491,29 @@ function isViewTransformed() {
 
 function hasOffscreenPerturbedNode() {
     const t = d3.zoomTransform(svg.node());
-    let hasOffscreenNode = false;
+    return allNodesData.some(node => {
+        if (!node._perturbed) return false;
 
-    nodeLayer.selectAll("circle.node").each(function () {
-        if (hasOffscreenNode || this.dataset.perturbed !== "true") return;
-
-        const localX = Number(this.getAttribute("cx"));
-        const localY = Number(this.getAttribute("cy"));
-        const screenX = t.applyX(localX);
-        const screenY = t.applyY(localY);
-
-        if (screenX < 0 || screenX > width || screenY < 0 || screenY > height) {
-            hasOffscreenNode = true;
-        }
+        const position = getCurrentNodePosition(node);
+        const screenX = t.applyX(position.x);
+        const screenY = t.applyY(position.y);
+        return screenX < 0 || screenX > width || screenY < 0 || screenY > height;
     });
-
-    return hasOffscreenNode;
 }
 
 function canPanMap() {
-    return !brushModeActive && (isViewTransformed() || hasOffscreenPerturbedNode());
-}
-
-function getNodeElement(node) {
-    return document.getElementById(`node-${node.id}`);
+    return mapNavigationMode || (!brushModeActive && (isViewTransformed() || hasOffscreenPerturbedNode()));
 }
 
 function getCurrentNodePosition(node) {
-    const el = getNodeElement(node);
-    if (!el) {
-        return { x: xScale(node.x), y: yScale(node.y) };
-    }
-
     return {
-        x: Number(el.getAttribute("cx")),
-        y: Number(el.getAttribute("cy"))
+        x: node._canvasX ?? xScale(node.x),
+        y: node._canvasY ?? yScale(node.y)
     };
 }
 
 function getNodeFillColor(node) {
+    if (node._fillOverride) return node._fillOverride;
     if (currentColorEncoding === "airline") {
         return airlineColorScale(node.airline);
     }
@@ -465,21 +524,316 @@ function getNodeFillColor(node) {
     return sentimentColors[node.sentiment] || "#64748b";
 }
 
-function updateNodeColors() {
-    nodeLayer.selectAll("circle.node").each(function (d) {
-        const circle = d3.select(this);
-        const isPerturbed = this.dataset.perturbed === "true";
+function resizeMapCanvas() {
+    const pixelRatio = window.devicePixelRatio || 1;
+    mapCanvas.width = Math.max(1, Math.floor(width * pixelRatio));
+    mapCanvas.height = Math.max(1, Math.floor(height * pixelRatio));
+    mapCanvas.style.width = `${width}px`;
+    mapCanvas.style.height = `${height}px`;
+    mapContext.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+}
 
-        if (isPerturbed) return;
-
-        if (currentColorEncoding === "airline") {
-            circle.style("fill", airlineColorScale(d.airline));
-        } else if (currentColorEncoding === "topic") {
-            circle.style("fill", d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id));
-        } else {
-            circle.style("fill", null);
+function resetNodeVisuals({ resetPerturbations = false } = {}) {
+    allNodesData.forEach(node => {
+        node._selected = false;
+        node._selectionAnchor = false;
+        node._selectionMuted = false;
+        node._dimmed = false;
+        node._keywordHighlight = false;
+        node._brushSelectedKeywordHighlight = false;
+        node._bertopicHighlight = false;
+        node._brushSelectedBertopicHighlight = false;
+        node._perturbationOutline = false;
+        node._opacity = normalNodeOpacity;
+        node._stroke = normalNodeStrokeColor;
+        node._strokeWidth = normalNodeStrokeWidth;
+        if (resetPerturbations) {
+            node._perturbed = false;
+            node._canvasX = null;
+            node._canvasY = null;
+            node._fillOverride = null;
         }
     });
+}
+
+function isBrushPointTfidfHighlightActive() {
+    return interactionMode === "brush" && selectionMode === "point" && Boolean(activeKeyword);
+}
+
+function getSelectedNodeStrokeWidth() {
+    return isBrushPointTfidfHighlightActive() ? brushPointSelectedNodeStrokeWidth : selectedNodeStrokeWidth;
+}
+
+function getKeywordNodeStrokeWidth() {
+    return isBrushPointTfidfHighlightActive() ? brushPointKeywordNodeStrokeWidth : keywordNodeStrokeWidth;
+}
+
+function getCanvasStrokeWidth(strokeWidth, zoomK, isEmphasized = false) {
+    const distanceScale = zoomK < 1 ? zoomK * zoomK * 0.22 : 0.22;
+    const maxStrokeWidth = isEmphasized ? 3.8 : 0.55;
+    return Math.max(0.05, Math.min(maxStrokeWidth, strokeWidth * distanceScale));
+}
+
+function getRelativeLuminance(colorString) {
+    const color = d3.color(colorString);
+    if (!color) return 0;
+
+    const channels = [color.r, color.g, color.b].map(value => {
+        const normalized = value / 255;
+        return normalized <= 0.03928
+            ? normalized / 12.92
+            : Math.pow((normalized + 0.055) / 1.055, 2.4);
+    });
+
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+function getContrastRatio(colorA, colorB) {
+    const luminanceA = getRelativeLuminance(colorA);
+    const luminanceB = getRelativeLuminance(colorB);
+    const lighter = Math.max(luminanceA, luminanceB);
+    const darker = Math.min(luminanceA, luminanceB);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+function getDynamicAnchorStrokeColor(node) {
+    const fillColor = getNodeFillColor(node);
+    const candidates = ["#111827", "#ffffff", "#0f766e", "#2563eb", "#c026d3", "#facc15"];
+    return candidates.reduce((bestColor, candidate) => (
+        getContrastRatio(fillColor, candidate) > getContrastRatio(fillColor, bestColor)
+            ? candidate
+            : bestColor
+    ), candidates[0]);
+}
+
+function getBrushSelectedKeywordStrokeColor(node) {
+    const fillColor = getNodeFillColor(node);
+    const candidates = ["#ffffff", "#2563eb", "#c026d3", "#0f766e", "#f97316"];
+    return candidates.reduce((bestColor, candidate) => (
+        getContrastRatio(fillColor, candidate) > getContrastRatio(fillColor, bestColor)
+            ? candidate
+            : bestColor
+    ), candidates[0]);
+}
+
+function getBertopicStrokeColor(node) {
+    const fillColor = getNodeFillColor(node);
+    const candidates = ["#ffffff", "#7c3aed", "#0891b2", "#dc2626", "#111827"];
+    return candidates.reduce((bestColor, candidate) => (
+        getContrastRatio(fillColor, candidate) > getContrastRatio(fillColor, bestColor)
+            ? candidate
+            : bestColor
+    ), candidates[0]);
+}
+
+function applySelectionVisualState() {
+    const hasSelection = selectedNodeIds.size > 0;
+    allNodesData.forEach(node => {
+            node._selected = selectedNodeIds.has(node.id);
+            node._selectionAnchor = interactionMode === "click"
+                && selectionMode === "cluster"
+                && originalClickedNode
+                && node.id === originalClickedNode.id;
+            node._selectionMuted = hasSelection && !node._selected;
+            if (node._selected) {
+                node._opacity = highlightedNodeOpacity;
+                node._stroke = node._selectionAnchor ? getDynamicAnchorStrokeColor(node) : selectedNodeStrokeColor;
+            node._strokeWidth = node._perturbationOutline
+                ? perturbationOutlineStrokeWidth
+                : (node._selectionAnchor ? anchorNodeStrokeWidth : getSelectedNodeStrokeWidth());
+        } else if (node._selectionMuted) {
+            node._opacity = 0.14;
+            node._stroke = normalNodeStrokeColor;
+            node._strokeWidth = normalNodeStrokeWidth;
+        } else if (!node._keywordHighlight && !node._dimmed) {
+            node._opacity = normalNodeOpacity;
+            node._stroke = normalNodeStrokeColor;
+            node._strokeWidth = normalNodeStrokeWidth;
+        }
+    });
+}
+
+function drawCanvasNode(node, transform, forceHighlight = false) {
+    const position = getCurrentNodePosition(node);
+    const x = transform.applyX(position.x);
+    const y = transform.applyY(position.y);
+    const radius = Math.max(1.2, canvasNodeRadius * transform.k);
+    const opacity = forceHighlight ? (node._opacity ?? highlightedNodeOpacity) : (node._opacity ?? normalNodeOpacity);
+    const stroke = forceHighlight
+        ? (node._brushSelectedBertopicHighlight ? (node._stroke ?? getBertopicStrokeColor(node)) : (node._bertopicHighlight ? (node._stroke ?? getBertopicStrokeColor(node)) : (node._brushSelectedKeywordHighlight ? (node._stroke ?? getBrushSelectedKeywordStrokeColor(node)) : (node._keywordHighlight ? keywordHighlightColor : (node._stroke ?? selectedNodeStrokeColor)))))
+        : (node._stroke ?? normalNodeStrokeColor);
+    const strokeWidth = forceHighlight
+        ? (node._brushSelectedBertopicHighlight ? (node._strokeWidth ?? brushSelectedBertopicNodeStrokeWidth) : (node._bertopicHighlight ? (node._strokeWidth ?? bertopicNodeStrokeWidth) : (node._brushSelectedKeywordHighlight ? (node._strokeWidth ?? brushSelectedKeywordNodeStrokeWidth) : (node._keywordHighlight ? getKeywordNodeStrokeWidth() : (node._strokeWidth ?? getSelectedNodeStrokeWidth())))))
+        : (node._strokeWidth ?? normalNodeStrokeWidth);
+    const renderedStrokeWidth = getCanvasStrokeWidth(
+        strokeWidth,
+        transform.k,
+        node._selectionAnchor || node._brushSelectedKeywordHighlight || node._brushSelectedBertopicHighlight || node._perturbationOutline
+    );
+
+    mapContext.globalAlpha = opacity;
+    mapContext.beginPath();
+    mapContext.arc(x, y, radius, 0, Math.PI * 2);
+    mapContext.fillStyle = getNodeFillColor(node);
+    mapContext.fill();
+
+    if (renderedStrokeWidth > 0) {
+        mapContext.globalAlpha = Math.min(1, opacity + 0.1);
+        mapContext.lineWidth = renderedStrokeWidth;
+        mapContext.strokeStyle = stroke;
+        mapContext.stroke();
+    }
+}
+
+function drawMapCanvas() {
+    if (!xScale || !yScale) return;
+
+    mapContext.clearRect(0, 0, width, height);
+    const transform = d3.zoomTransform(svg.node());
+    const highlightedNodes = [];
+
+    allNodesData.forEach(node => {
+        if (node._selected || node._keywordHighlight || node._bertopicHighlight) {
+            highlightedNodes.push(node);
+            return;
+        }
+        drawCanvasNode(node, transform);
+    });
+
+    highlightedNodes
+        .sort((a, b) => {
+            const getHighlightWeight = node =>
+                Number(Boolean(node._bertopicHighlight))
+                + Number(Boolean(node._brushSelectedKeywordHighlight)) * 2
+                + Number(Boolean(node._brushSelectedBertopicHighlight)) * 3
+                + Number(Boolean(node._selectionAnchor)) * 4;
+            return getHighlightWeight(a) - getHighlightWeight(b);
+        })
+        .forEach(node => drawCanvasNode(node, transform, true));
+    perturbationVisualNodes.forEach(node => drawCanvasNode(node, transform, true));
+    mapContext.globalAlpha = 1;
+}
+
+function getInsetLineEndpoints(startX, startY, endX, endY, inset) {
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (!distance || distance <= inset * 2) {
+        return { x1: startX, y1: startY, x2: endX, y2: endY };
+    }
+
+    const ux = dx / distance;
+    const uy = dy / distance;
+    return {
+        x1: startX + ux * inset,
+        y1: startY + uy * inset,
+        x2: endX - ux * inset,
+        y2: endY - uy * inset
+    };
+}
+
+function updatePerturbationTrajectories() {
+    const transform = d3.zoomTransform(svg.node());
+    const zoomK = Math.max(transform.k || 1, 0.001);
+    const screenGap = 2 / zoomK;
+    const zoomVisualScale = Math.sqrt(zoomK);
+    const screenLineWidth = Math.max(0.35, Math.min(2.2, 0.85 * zoomVisualScale));
+    const screenArrowLength = Math.max(4.0, Math.min(15, 7.0 * zoomVisualScale));
+    const screenArrowHalfWidth = Math.max(1.8, Math.min(6.2, 3.2 * zoomVisualScale));
+    const screenGhostStrokeWidth = Math.max(1.0, Math.min(3.0, 1.35 * zoomVisualScale));
+    const lineWidth = screenLineWidth / zoomK;
+    const arrowLength = screenArrowLength / zoomK;
+    const arrowHalfWidth = screenArrowHalfWidth / zoomK;
+    const ghostRadius = Math.max(2.4, canvasNodeRadius * 1.05);
+    const ghostStrokeWidth = screenGhostStrokeWidth / zoomK;
+    const startInset = canvasNodeRadius + screenGap;
+    const endInset = canvasNodeRadius;
+
+    perturbationTrajectories.forEach(trajectory => {
+        const trajectoryOpacity = trajectory._active ? 1 : inactivePerturbationOpacity;
+        const ghostOpacity = trajectory._active ? 0.78 : inactivePerturbationOpacity;
+        const startPoint = getInsetLineEndpoints(
+            trajectory.startX,
+            trajectory.startY,
+            trajectory.endX,
+            trajectory.endY,
+            startInset
+        );
+        const endPoint = getInsetLineEndpoints(
+            trajectory.startX,
+            trajectory.startY,
+            trajectory.endX,
+            trajectory.endY,
+            endInset
+        );
+        const endpoints = {
+            x1: startPoint.x1,
+            y1: startPoint.y1,
+            x2: endPoint.x2,
+            y2: endPoint.y2
+        };
+        const dx = endpoints.x2 - endpoints.x1;
+        const dy = endpoints.y2 - endpoints.y1;
+        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+        const ux = dx / distance;
+        const uy = dy / distance;
+        const baseX = endpoints.x2 - ux * arrowLength;
+        const baseY = endpoints.y2 - uy * arrowLength;
+        const perpX = -uy;
+        const perpY = ux;
+        const arrowPath = [
+            `M${endpoints.x2},${endpoints.y2}`,
+            `L${baseX + perpX * arrowHalfWidth},${baseY + perpY * arrowHalfWidth}`,
+            `L${baseX - perpX * arrowHalfWidth},${baseY - perpY * arrowHalfWidth}`,
+            "Z"
+        ].join("");
+
+        trajectory.ghost
+            .attr("cx", trajectory.startX)
+            .attr("cy", trajectory.startY)
+            .attr("r", ghostRadius)
+            .attr("stroke-width", ghostStrokeWidth)
+            .attr("opacity", ghostOpacity);
+
+        trajectory.line
+            .attr("x1", endpoints.x1)
+            .attr("y1", endpoints.y1)
+            .attr("x2", baseX)
+            .attr("y2", baseY)
+            .attr("stroke-width", lineWidth)
+            .attr("opacity", trajectoryOpacity);
+
+        trajectory.head
+            .attr("d", arrowPath)
+            .attr("opacity", trajectoryOpacity);
+    });
+}
+
+function findCanvasNodeAt(screenX, screenY) {
+    if (!allNodesData.length || brushModeActive || mapNavigationMode) return null;
+    const transform = d3.zoomTransform(svg.node());
+    const hitRadius = Math.max(5, canvasNodeRadius * transform.k + 3);
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    const hitNodes = [...perturbationVisualNodes].reverse().concat(allNodesData);
+    for (const node of hitNodes) {
+        const position = getCurrentNodePosition(node);
+        const dx = transform.applyX(position.x) - screenX;
+        const dy = transform.applyY(position.y) - screenY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= hitRadius && distance < nearestDistance) {
+            nearest = node;
+            nearestDistance = distance;
+        }
+    }
+
+    return nearest;
+}
+
+function updateNodeColors() {
+    drawMapCanvas();
 }
 
 function escapeHtml(text) {
@@ -512,6 +866,50 @@ function highlightChangedText(original, perturbed) {
     return highlighted.join(" ");
 }
 
+function highlightRemovedText(original, perturbed) {
+    const originalWords = original.split(/\s+/).filter(Boolean);
+    const perturbedWords = perturbed.split(/\s+/).filter(Boolean);
+    const lcs = Array.from({ length: originalWords.length + 1 }, () =>
+        Array(perturbedWords.length + 1).fill(0)
+    );
+
+    for (let i = originalWords.length - 1; i >= 0; i--) {
+        for (let j = perturbedWords.length - 1; j >= 0; j--) {
+            lcs[i][j] = originalWords[i] === perturbedWords[j]
+                ? lcs[i + 1][j + 1] + 1
+                : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+        }
+    }
+
+    const highlighted = [];
+    let j = 0;
+    for (let i = 0; i < originalWords.length; i++) {
+        if (j < perturbedWords.length && originalWords[i] === perturbedWords[j]) {
+            highlighted.push(escapeHtml(originalWords[i]));
+            j++;
+            continue;
+        }
+
+        if (j >= perturbedWords.length) {
+            highlighted.push(`<span class="perturbation-removed">${escapeHtml(originalWords[i])}</span>`);
+        } else if (lcs[i][j + 1] >= lcs[i + 1][j]) {
+            highlighted.push(`<span class="perturbation-removed">${escapeHtml(originalWords[i])}</span>`);
+        } else if (lcs[i + 1][j] >= lcs[i][j]) {
+            highlighted.push(`<span class="perturbation-removed">${escapeHtml(originalWords[i])}</span>`);
+        } else {
+            highlighted.push(escapeHtml(originalWords[i]));
+        }
+    }
+
+    return highlighted.join(" ");
+}
+
+function normalizePerturbationHighlight(html) {
+    return html
+        .replace(/<(strong|b)\b[^>]*>/gi, '<span class="perturbation-diff">')
+        .replace(/<\/(strong|b)>/gi, "</span>");
+}
+
 function setPerturbationDisplay(result) {
     const output = document.getElementById("new-text");
     if (!result) {
@@ -522,14 +920,50 @@ function setPerturbationDisplay(result) {
     const label = perturbationLabels[result.type] || result.type;
     let perturbedHtml = "";
     
-    if (result.displayText && result.displayText !== result.text) {
-        perturbedHtml = result.displayText;
+    if (result.type === "dict_remove") {
+        const originalText = result.originalText || result.text;
+        perturbedHtml = highlightRemovedText(originalText, result.text);
+    } else if (result.displayText && result.displayText !== result.text) {
+        perturbedHtml = normalizePerturbationHighlight(result.displayText);
     } else {
         const originalText = result.originalText || result.text;
         perturbedHtml = highlightChangedText(originalText, result.text);
     }
 
-    output.innerHTML = `<strong>${label}</strong>${result.nodeId ? ` · <small>Tweet ${result.nodeId}</small>` : ""}<br>${perturbedHtml}`;
+    output.innerHTML = `<strong>${label}</strong><br>${perturbedHtml}`;
+}
+
+function syncActivePerturbationVisualState() {
+    allNodesData.forEach(node => {
+        node._perturbationOutline = false;
+    });
+
+    perturbationVisualNodes.forEach(node => {
+        const isActive = node._perturbationResult?.key === activePerturbationKey;
+        node._opacity = isActive ? highlightedNodeOpacity : inactivePerturbationOpacity;
+        node._stroke = isActive ? selectedNodeStrokeColor : "transparent";
+        node._strokeWidth = isActive ? perturbationOutlineStrokeWidth : 0;
+        node._perturbationOutline = isActive;
+    });
+
+    perturbationTrajectories.forEach(trajectory => {
+        trajectory._active = trajectory.key === activePerturbationKey;
+    });
+
+    const activeResult = perturbationResults.find(result => result.key === activePerturbationKey);
+    if (activeResult) {
+        const sourceNode = allNodesData.find(node => node.id === activeResult.nodeId);
+        if (sourceNode) {
+            sourceNode._perturbationOutline = true;
+            sourceNode._stroke = selectedNodeStrokeColor;
+            sourceNode._strokeWidth = perturbationOutlineStrokeWidth;
+            sourceNode._opacity = highlightedNodeOpacity;
+        }
+    }
+
+    applySelectionVisualState();
+    updatePerturbationTrajectories();
+    drawMapCanvas();
 }
 
 function renderPerturbationCarousel() {
@@ -563,6 +997,7 @@ function renderPerturbationCarousel() {
     const activeResult = perturbationResults.find(result => result.key === activePerturbationKey) || perturbationResults[perturbationResults.length - 1];
     activePerturbationKey = activeResult.key;
     setPerturbationDisplay(activeResult);
+    syncActivePerturbationVisualState();
 }
 
 function storePerturbationResult(nodeId, type, text, originalText, displayText) {
@@ -578,12 +1013,25 @@ function storePerturbationResult(nodeId, type, text, originalText, displayText) 
 
     activePerturbationKey = key;
     renderPerturbationCarousel();
+    return nextResult;
 }
 
 function resetPerturbationResults() {
     perturbationResults = [];
     activePerturbationKey = null;
     renderPerturbationCarousel();
+}
+
+function removePerturbationVisualsByKey(key) {
+    perturbationTrajectories = perturbationTrajectories.filter(trajectory => {
+        if (trajectory.key !== key) return true;
+        trajectory.ghost.remove();
+        trajectory.line.remove();
+        trajectory.head.remove();
+        return false;
+    });
+
+    perturbationVisualNodes = perturbationVisualNodes.filter(node => node._perturbationResult?.key !== key);
 }
 
 async function parseApiResponse(response) {
@@ -607,34 +1055,66 @@ async function parseApiResponse(response) {
 }
 
 function getSelectionDistributionConfigs(nodes) {
+    const countBySentiment = d3.rollup(nodes, values => values.length, d => d.sentiment);
+    const countByAirline = d3.rollup(nodes, values => values.length, d => d.airline);
+    const countByTopic = d3.rollup(nodes, values => values.length, d => d.topic_id);
+    const sentimentOrder = ["positive", "negative", "neutral"];
+    const airlineOrder = airlineColorScale.domain();
+    const topicOrder = [-1, ...topicColorScale.domain()];
+
+    function buildDistributionData(countMap, orderedKeys) {
+        const seen = new Set(orderedKeys.map(key => String(key)));
+        const extraKeys = Array.from(countMap.keys()).filter(key => !seen.has(String(key)));
+        return [...orderedKeys, ...extraKeys]
+            .map(key => [key, countMap.get(key) || 0])
+            .filter(([, count]) => count > 0);
+    }
+
     return {
         sentiment: {
             title: "Sentiments",
-            data: d3.rollups(nodes, values => values.length, d => d.sentiment).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+            data: buildDistributionData(countBySentiment, sentimentOrder),
             labelAccessor: label => label,
             colorAccessor: label => sentimentColors[label] || "#64748b"
         },
         airline: {
             title: "Airlines",
-            data: d3.rollups(nodes, values => values.length, d => d.airline).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+            data: buildDistributionData(countByAirline, airlineOrder),
             labelAccessor: label => label,
             colorAccessor: label => airlineColorScale(label)
         },
         topic: {
             title: "Topics",
-            data: d3.rollups(nodes, values => values.length, d => d.topic_id).sort((a, b) => d3.descending(a[1], b[1]) || d3.ascending(a[0], b[0])),
+            data: buildDistributionData(countByTopic, topicOrder),
             labelAccessor: label => getTopicLabel(label),
             colorAccessor: label => label === -1 ? "#cbd5e1" : topicColorScale(label)
         }
     };
 }
 
-function renderClusterVerticalBarChart(container, nodes) {
+function renderSelectionVerticalBarChart(container, nodes) {
     const configs = getSelectionDistributionConfigs(nodes);
     const config = configs[currentColorEncoding] || configs.sentiment;
     const chartNode = container.node();
     const containerWidth = chartNode ? chartNode.getBoundingClientRect().width : 280;
-    const margin = { top: 28, right: 12, bottom: 54, left: 42 };
+    const totalCount = nodes.length || 1;
+    const percentFormat = d3.format(".2f");
+
+    if (config.data.length === 1 && config.data[0][1] === nodes.length) {
+        const [key] = config.data[0];
+        const categoryLabel = config.labelAccessor(key);
+        const summary = document.createElement("div");
+        summary.style.cssText = "padding: 8px 0 4px; color: #334155; font-size: 0.92rem; line-height: 1.45;";
+        const percent = document.createElement("strong");
+        percent.textContent = "100.00%";
+        const category = document.createElement("strong");
+        category.textContent = categoryLabel;
+        summary.append(percent, " of selected tweets belong to ", category, ".");
+        container.node().appendChild(summary);
+        return;
+    }
+
+    const margin = { top: 34, right: 12, bottom: 58, left: 44 };
     const chartWidth = Math.max(containerWidth || 280, 260);
     const chartHeight = 220;
     const innerWidth = chartWidth - margin.left - margin.right;
@@ -655,7 +1135,7 @@ function renderClusterVerticalBarChart(container, nodes) {
         .attr("font-size", "12px")
         .attr("font-weight", "700")
         .attr("text-transform", "uppercase")
-        .text(`SELECTED ${config.title.toUpperCase()}`);
+        .text(`${config.title.toUpperCase()} DISTRIBUTION`);
 
     const x = d3.scaleBand()
         .domain(config.data.map(([key]) => String(key)))
@@ -663,15 +1143,14 @@ function renderClusterVerticalBarChart(container, nodes) {
         .padding(0.28);
 
     const y = d3.scaleLinear()
-        .domain([0, d3.max(config.data, ([, count]) => count) || 1])
-        .nice()
+        .domain([0, 100])
         .range([innerHeight, 0]);
 
     const g = svg.append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
     g.append("g")
-        .call(d3.axisLeft(y).ticks(4).tickSize(-innerWidth))
+        .call(d3.axisLeft(y).ticks(5).tickFormat(value => `${value}%`).tickSize(-innerWidth))
         .call(axis => axis.select(".domain").remove())
         .call(axis => axis.selectAll(".tick line").attr("stroke", "#e2e8f0"))
         .call(axis => axis.selectAll(".tick text").attr("fill", "#64748b").attr("font-size", "11px"));
@@ -696,9 +1175,9 @@ function renderClusterVerticalBarChart(container, nodes) {
         .enter()
         .append("rect")
         .attr("x", ([key]) => x(String(key)))
-        .attr("y", ([, count]) => y(count))
+        .attr("y", ([, count]) => y((count / totalCount) * 100))
         .attr("width", x.bandwidth())
-        .attr("height", ([, count]) => innerHeight - y(count))
+        .attr("height", ([, count]) => innerHeight - y((count / totalCount) * 100))
         .attr("rx", 3)
         .attr("fill", ([key]) => config.colorAccessor(key))
         .on("mousemove", function (event, [key, count]) {
@@ -716,12 +1195,12 @@ function renderClusterVerticalBarChart(container, nodes) {
         .append("text")
         .attr("class", "bar-value")
         .attr("x", ([key]) => x(String(key)) + x.bandwidth() / 2)
-        .attr("y", ([, count]) => y(count) - 6)
+        .attr("y", ([, count]) => y((count / totalCount) * 100) - 8)
         .attr("text-anchor", "middle")
         .attr("fill", "#334155")
         .attr("font-size", "11px")
         .attr("font-weight", "700")
-        .text(([, count]) => count);
+        .text(([, count]) => `${percentFormat((count / totalCount) * 100)}%`);
 }
 
 function renderBrushClusterSummary(container, nodes) {
@@ -730,6 +1209,7 @@ function renderBrushClusterSummary(container, nodes) {
     const clusterKey = getClusterKey(nodes[0]);
     const label = config.labelAccessor(clusterKey);
     const color = config.colorAccessor(clusterKey);
+    const clusterTotal = allNodesData.filter(node => getClusterKey(node) === clusterKey).length;
     const typeLabel = currentColorEncoding === "airline"
         ? "Airline"
         : (currentColorEncoding === "topic" ? "Topic" : "Sentiment");
@@ -744,7 +1224,7 @@ function renderBrushClusterSummary(container, nodes) {
     text.style.cssText = "display: grid; gap: 2px; font-size: 0.9rem;";
     text.innerHTML = `
         <strong>${typeLabel}: ${label}</strong>
-        <span>${nodes.length} tweet${nodes.length === 1 ? "" : "s"} total</span>
+        <span>${clusterTotal} tweet${clusterTotal === 1 ? "" : "s"} total</span>
     `;
 
     summary.appendChild(swatch);
@@ -754,7 +1234,17 @@ function renderBrushClusterSummary(container, nodes) {
 
 function renderSelectionDistributionChart(nodes) {
     const container = d3.select("#selection-distribution-chart");
+    const indicator = d3.select("#selection-cluster-indicator");
     container.html("");
+
+    if (interactionMode === "click" && selectionMode === "point") {
+        indicator.style("display", "flex");
+        container.style("display", "none");
+        return;
+    }
+
+    indicator.style("display", "none");
+    container.style("display", null);
 
     if (!nodes.length) {
         topicDistributionTooltip.style("opacity", 0);
@@ -767,23 +1257,85 @@ function renderSelectionDistributionChart(nodes) {
     container.attr("class", "");
 
     if (selectionMode === "cluster") {
-        if (interactionMode === "brush") {
-            renderBrushClusterSummary(container, nodes);
-        }
+        renderBrushClusterSummary(container, nodes);
         return;
     }
 
-    container.html("");
+    if (interactionMode === "brush" && selectionMode === "point") {
+        renderSelectionVerticalBarChart(container, nodes);
+        return;
+    }
+
+    container
+        .attr("class", "chart-placeholder")
+        .html("<em>Brush multiple points to see the selection distribution.</em>");
+}
+
+function getClusterColor(node) {
+    if (!node) return "#cbd5e1";
+    switch (currentColorEncoding) {
+        case "sentiment":
+            return sentimentColors[node.sentiment] || "#64748b";
+        case "airline":
+            return airlineColorScale(node.airline || "Unknown");
+        case "topic":
+            return node.topic_id === -1 ? "#cbd5e1" : topicColorScale(node.topic_id);
+        default:
+            return "#64748b";
+    }
+}
+
+function getClusterLabel(node) {
+    if (!node) return "-";
+    switch (currentColorEncoding) {
+        case "sentiment":
+            return node.sentiment;
+        case "airline":
+            return getNodeAirlineLabel(node);
+        case "topic":
+            return getNodeTopicLabel(node);
+        default:
+            return getNodeTopicLabel(node);
+    }
+}
+
+function updateSelectionClusterIndicator() {
+    const indicator = document.getElementById("selection-cluster-indicator");
+    const swatch = document.getElementById("selection-cluster-swatch");
+    const text = document.getElementById("selection-cluster-text");
+    if (!indicator || !swatch || !text) return;
+
+    const isPointClickMode = interactionMode === "click" && selectionMode === "point";
+    if (!isPointClickMode) {
+        indicator.style.display = "none";
+        return;
+    }
+
+    indicator.style.display = "flex";
+    const titleCaseEncoding = currentColorEncoding.charAt(0).toUpperCase() + currentColorEncoding.slice(1);
+    if (selectedNodesData.length !== 1) {
+        swatch.style.background = "#cbd5e1";
+        text.textContent = `Click a point to select a tweet and view ${titleCaseEncoding} cluster details.`;
+        return;
+    }
+
+    const node = selectedNodesData[0];
+    swatch.style.background = getClusterColor(node);
+    text.textContent = `${titleCaseEncoding}: ${getClusterLabel(node)}`;
 }
 
 function renderMapLegends(nodes = []) {
     const legendLabel = document.getElementById("map-legend-label");
     const legendItems = document.getElementById("map-legend-items");
     const totalCount = document.getElementById("map-total-count");
+    const detailsTotalCount = document.getElementById("details-total-count");
     const legendSource = allNodesData.length ? allNodesData : nodes;
 
     if (totalCount) {
         totalCount.innerText = `Total: ${legendSource.length} tweet${legendSource.length === 1 ? "" : "s"}`;
+    }
+    if (detailsTotalCount) {
+        detailsTotalCount.innerText = `Total: ${legendSource.length} tweet${legendSource.length === 1 ? "" : "s"}`;
     }
 
     let legendData;
@@ -809,7 +1361,7 @@ function renderMapLegends(nodes = []) {
         let displayLabel = currentColorEncoding === "topic" ? getTopicLabel(label) : label;
         
         return `
-        <div class="map-legend-item">
+        <div class="map-legend-item" title="${displayLabel}">
             <span class="map-legend-swatch" style="background:${color};"></span>
             <span>${displayLabel}</span>
         </div>
@@ -818,20 +1370,12 @@ function renderMapLegends(nodes = []) {
 }
 
 function updateSelectionUI() {
-    const selectedIds = new Set(selectedNodesData.map(node => node.id));
+    selectedNodeIds = new Set(selectedNodesData.map(node => node.id));
     const selectionAttributeGrid = document.getElementById("tw-sentiment")?.closest("div")?.parentElement;
 
-    nodeLayer.selectAll("circle.node")
-        .classed("selected", d => selectedIds.has(d.id))
-        .classed("selection-muted", d => selectedIds.size > 0 && !selectedIds.has(d.id))
-        .style("opacity", d => selectedIds.has(d.id) ? highlightedNodeOpacity : normalNodeOpacity)
-        .style("stroke", d => selectedIds.has(d.id) ? selectedNodeStrokeColor : normalNodeStrokeColor)
-        .style("stroke-width", d => selectedIds.has(d.id) ? selectedNodeStrokeWidth : normalNodeStrokeWidth)
-        .each(function (d) {
-            if (selectedIds.has(d.id)) {
-                d3.select(this).raise();
-            }
-        });
+    applySelectionVisualState();
+    drawMapCanvas();
+    updateOriginalTextVisibility();
 
     const hasSelection = selectedNodesData.length > 0;
     const singleSelection = selectedNodesData.length === 1;
@@ -843,10 +1387,15 @@ function updateSelectionUI() {
 
     document.getElementById("selection-count").innerText = `${selectedNodesData.length} tweet${selectedNodesData.length === 1 ? "" : "s"} selected`;
     renderSelectionDistributionChart(selectedNodesData);
+    updateSelectionClusterIndicator();
     renderMapLegends(selectedNodesData);
     updateBertopicSelectionSummary(selectedNodesData);
+    const selectionCountLine = document.getElementById("selection-count-line");
+    if (selectionCountLine) {
+        selectionCountLine.style.display = (interactionMode === "click" && selectionMode === "point") ? "none" : "block";
+    }
     if (selectionAttributeGrid) {
-        selectionAttributeGrid.style.display = singleSelection ? "grid" : "none";
+        selectionAttributeGrid.style.display = (singleSelection && !(interactionMode === "click" && selectionMode === "point")) ? "grid" : "none";
     }
 
     if (!hasSelection) {
@@ -858,7 +1407,6 @@ function updateSelectionUI() {
         document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
         updatePerturbationButtonState(); // Update button state when selection is cleared
-        resetPerturbationResults();
         return;
     }
 
@@ -881,33 +1429,74 @@ function updateSelectionUI() {
     document.getElementById("tw-airline").innerText = getNodeAirlineLabel(node);
     document.getElementById("tw-topic").innerText = getNodeTopicLabel(node);
     renderTokenAnalysis(node.text);
+    if (node._lastPerturbationResult) {
+        activePerturbationKey = node._lastPerturbationResult.key;
+        renderPerturbationCarousel();
+        setPerturbationDisplay(node._lastPerturbationResult);
+        document.getElementById("results-area").style.display = "block";
+    } else {
+        setPerturbationDisplay(null);
+    }
     //renderHeatmap(node.text);
     // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
 }
 
-function clearSelection() {
+function showPerturbedTweetDetails(visualNode) {
+    const result = visualNode._perturbationResult;
+    if (!result) return;
+
+    const selectionAttributeGrid = document.getElementById("tw-sentiment")?.closest("div")?.parentElement;
+    if (selectionAttributeGrid) {
+        selectionAttributeGrid.style.display = "grid";
+    }
+
+    document.getElementById("selection-count").innerText = "1 perturbed tweet selected";
+    document.getElementById("tw-id").innerText = `${result.nodeId} · perturbed`;
+    document.getElementById("tw-sentiment").innerText = visualNode.sentiment;
+    document.getElementById("tw-airline").innerText = getNodeAirlineLabel(visualNode);
+    document.getElementById("tw-topic").innerText = getNodeTopicLabel(visualNode);
+    d3.select("#heatmap-container").html("<em>Token analysis is shown for the perturbed tweet.</em>");
+
+    activePerturbationKey = result.key;
+    renderPerturbationCarousel();
+    setPerturbationDisplay(result);
+    document.getElementById("results-area").style.display = "block";
+
+    targetWordForPerturbation = null;
+    if (document.getElementById("target-word-info")) {
+        document.getElementById("target-word-info").style.display = "none";
+    }
+    updatePerturbationButtonState();
+    renderTokenAnalysis(result.text);
+}
+
+function clearPerturbationState() {
+    linkLayer.selectAll("*").remove();
+    perturbationTrajectories = [];
+    perturbationVisualNodes = [];
+    allNodesData.forEach(node => {
+        node._perturbed = false;
+        node._canvasX = null;
+        node._canvasY = null;
+        node._fillOverride = null;
+        node._perturbationOutline = false;
+        node._lastPerturbationResult = null;
+    });
+    resetPerturbationResults();
+}
+
+function clearSelection(options = {}) {
+    const { resetPerturbations = false } = options;
     selectedNodesData = [];
+    brushClusterSourceNodes = [];
     originalClickedNode = null;
     clearKeywordHighlight();
-    resetPerturbationResults();
-    linkLayer.selectAll("*").remove();
-    nodeLayer.selectAll("circle.node")
-        .classed("selected", false)
-        .classed("selection-muted", false)
-        .classed("dimmed", false)
-        .attr("data-perturbed", "false")
-        .transition()
-        .duration(800)
-        .attr("cx", d => xScale(d.x))
-        .attr("cy", d => yScale(d.y))
-        .style("fill", d => {
-            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
-            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
-            return null;
-        })
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    selectedNodeIds = new Set();
+    resetNodeVisuals({ resetPerturbations });
+    if (resetPerturbations) {
+        clearPerturbationState();
+    }
+    drawMapCanvas();
 
     targetWordForPerturbation = null;
     if (document.getElementById("target-word-info")) document.getElementById("target-word-info").style.display = "none";
@@ -1023,17 +1612,35 @@ function updatePanelVisibility() {
         if (tfidfPanel) tfidfPanel.style.display = "block";
         if (bertopicPanel) bertopicPanel.style.display = "block";
     }
+
+    updateOriginalTextVisibility();
+}
+
+function updateOriginalTextVisibility() {
+    const originalTextBlock = document.getElementById("original-text-block");
+    const selectionCountLine = document.getElementById("selection-count-line");
+
+    const hideBrushClusterDetails = selectionMode === "cluster"
+        || (interactionMode === "brush" && selectionMode === "point");
+    const hideSelectionLine = hideBrushClusterDetails || (interactionMode === "click" && selectionMode === "point");
+
+    if (originalTextBlock) {
+        originalTextBlock.style.display = hideBrushClusterDetails ? "none" : "block";
+    }
+    if (selectionCountLine) {
+        selectionCountLine.style.display = hideSelectionLine ? "none" : "block";
+    }
 }
 
 function setInteractionMode(mode) {
     const modeChanged = interactionMode !== mode;
     interactionMode = mode;
-    setBrushMode(mode === "brush");
+    setBrushMode(mode === "brush" && !mapNavigationMode);
     if (mode !== "brush") {
         brushLayer.call(brush.move, null);
     }
     if (modeChanged) {
-        clearSelection();
+        clearSelection({ resetPerturbations: true });
     }
     syncModeButtons();
     updatePanelVisibility();
@@ -1046,7 +1653,7 @@ function setSelectionMode(mode) {
         originalClickedNode = null;
     }
     if (modeChanged) {
-        clearSelection();
+        clearSelection({ resetPerturbations: true });
     }
     syncModeButtons();
     updatePanelVisibility();
@@ -1055,6 +1662,7 @@ function setSelectionMode(mode) {
 const zoom = d3.zoom()
     .scaleExtent([0.5, 20])
     .filter(function (event) {
+        if (mapNavigationMode && event.type === "mousedown") return !event.ctrlKey && !event.button;
         if (brushModeActive) return false;
         if (event.type === "dblclick") return false;
         if (event.target && event.target.classList && event.target.classList.contains("node")) return false;
@@ -1064,13 +1672,11 @@ const zoom = d3.zoom()
     })
     .on("zoom", function (event) {
         zoomGroup.attr("transform", event.transform);
+        drawMapCanvas();
+        updatePerturbationTrajectories();
         setResetButtonVisibility(isViewTransformed() || hasOffscreenPerturbedNode());
 
-        xAxisGroup.call(d3.axisBottom(event.transform.rescaleX(xScale)).ticks(axisTickCount))
-            .style("font-size", "13px");
-
-        yAxisGroup.call(d3.axisLeft(event.transform.rescaleY(yScale)).ticks(axisTickCount))
-            .style("font-size", "13px");
+        keepAxesVisible(event.transform);
     });
 
 const brush = d3.brush()
@@ -1087,6 +1693,7 @@ const brush = d3.brush()
             return screenX >= x0 && screenX <= x1 && screenY >= y0 && screenY <= y1;
         });
 
+        brushClusterSourceNodes = selectionMode === "cluster" ? getUniqueNodes(brushedNodes) : [];
         const resolvedNodes = resolveBrushSelectionMode(brushedNodes);
         selectNodes(resolvedNodes);
         if (resolvedNodes.length > 0) {
@@ -1108,15 +1715,43 @@ svg.on("mousedown.panCursor", function (event) {
     }
 });
 
+svg.on("mousemove.clickCursor", function (event) {
+    if (interactionMode !== "click" || mapNavigationMode || brushModeActive) {
+        svg.style("cursor", null);
+        return;
+    }
+
+    const [pointerX, pointerY] = d3.pointer(event, svg.node());
+    svg.style("cursor", findCanvasNodeAt(pointerX, pointerY) ? "pointer" : "default");
+});
+
+svg.on("mouseleave.clickCursor", function () {
+    svg.style("cursor", null);
+});
+
 svg.on("click.resetDim", function (event) {
     if (
+        mapNavigationMode ||
         event.target.closest("#map-toolbar") ||
         event.target.closest("#details-panel")
     ) return;
 
-    if (!event.target.classList.contains("node")) {
-        clearSelection();
+    const [pointerX, pointerY] = d3.pointer(event, svg.node());
+    const clickedNode = findCanvasNodeAt(pointerX, pointerY);
+    if (clickedNode) {
+        if (clickedNode._perturbationResult) {
+            showPerturbedTweetDetails(clickedNode);
+            return;
+        }
+
+        originalClickedNode = clickedNode;
+        brushClusterSourceNodes = [];
+        const nodesToSelect = resolveClickSelectionMode([clickedNode], clickedNode);
+        selectNodes(nodesToSelect, { append: false, toggle: false });
+        return;
     }
+
+    clearSelection();
 });
 
 document.addEventListener("mouseup", () => document.body.classList.remove("panning"));
@@ -1151,55 +1786,38 @@ d3.csv("base_map.csv", function (d) {
         .domain([yExtent[0] - yPad, yExtent[1] + yPad])
         .range([height - margin.bottom, margin.top]);
 
-    xAxisGroup.attr("transform", `translate(0,${height - margin.bottom})`)
-        .call(d3.axisBottom(xScale).ticks(axisTickCount))
-        .style("font-size", "13px");
-
-    yAxisGroup.attr("transform", `translate(${margin.left},0)`)
-        .call(d3.axisLeft(yScale).ticks(axisTickCount))
-        .style("font-size", "13px");
-
     const bigDataset = data.length > 2000;
     airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.airline))]);
     topicColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.topic_id))].filter(t => t !== -1).sort((a, b) => a - b));
     renderMapLegends();
-
-    nodeLayer.selectAll("circle.node")
-        .data(data)
-        .enter()
-        .append("circle")
-        .attr("class", d => `node ${d.sentiment}`)
-        .attr("id", d => `node-${d.id}`)
-        .attr("cx", d => xScale(d.x))
-        .attr("cy", d => yScale(d.y))
-        .attr("r", bigDataset ? 2.6 : baseNodeRadius)
-        .attr("shape-rendering", "crispEdges")
-        .attr("data-perturbed", "false")
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth)
-        .style("opacity", normalNodeOpacity)
-        .on("click", function (event, d) {
-            originalClickedNode = d;
-            const nodesToSelect = resolveClickSelectionMode([d], d);
-            selectNodes(nodesToSelect, { append: false, toggle: false });
-            event.stopPropagation();
-        });
+    canvasNodeRadius = bigDataset ? 2.6 : baseNodeRadius;
+    resizeMapCanvas();
+    resetNodeVisuals({ resetPerturbations: true });
+    drawMapCanvas();
 
     svg.append("text")
+        .attr("id", "umap-x-label")
         .attr("class", "axis-label")
         .attr("x", width / 2)
-        .attr("y", height - 28)
+        .attr("y", height - mapMargin.bottom + 70)
         .text("UMAP 1");
 
     svg.append("text")
+        .attr("id", "umap-y-label")
         .attr("class", "axis-label")
         .attr("transform", "rotate(-90)")
         .attr("y", 24)
         .attr("x", -height / 2)
         .text("UMAP 2");
 
+    keepAxesVisible(d3.zoomIdentity);
+
     colorEncodingSelect.addEventListener("change", event => {
-        setClusterEncoding(event.target.value);
+        const shouldResetView = interactionMode === "brush" && selectionMode === "point";
+        setClusterEncoding(event.target.value, { clearSelectionOnChange: true });
+        if (shouldResetView) {
+            applyZoomTransform(d3.zoomIdentity, 320);
+        }
     });
 
     setResetButtonVisibility(false);
@@ -1431,18 +2049,22 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 
     postJson("/api/perturb", payload)
         .then(data => {
-                storePerturbationResult(node.id, perturbType, data.new_text, node.text, data.display_text);
+                const perturbationResult = storePerturbationResult(node.id, perturbType, data.new_text, node.text, data.display_text);
+                removePerturbationVisualsByKey(perturbationResult.key);
 
                 const startX = xScale(node.x);
                 const startY = yScale(node.y);
                 const endX = xScale(data.new_x);
                 const endY = yScale(data.new_y);
 
-                linkLayer.append("circle")
+                const ghost = linkLayer.append("circle")
                     .attr("class", "ghost-node")
                     .attr("cx", startX)
                     .attr("cy", startY)
-                    .attr("r", baseNodeRadius);
+                    .attr("r", baseNodeRadius)
+                    .attr("fill", getNodeFillColor(node))
+                    .attr("fill-opacity", 0.28)
+                    .attr("stroke", "none");
 
                 const line = linkLayer.append("line")
                     .attr("class", "trajectory")
@@ -1451,22 +2073,39 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
                     .attr("x2", startX)
                     .attr("y2", startY)
                     .attr("stroke", arrowColor)
-                    .attr("marker-end", "url(#arrowhead)");
+                    .attr("stroke-linecap", "butt");
 
-                line.transition().duration(1500).ease(d3.easeCubicOut)
-                    .attr("x2", endX)
-                    .attr("y2", endY);
+                const head = linkLayer.append("path")
+                    .attr("class", "trajectory-head")
+                    .attr("fill", arrowColor);
 
-                d3.select(`#node-${node.id}`)
-                    .attr("data-perturbed", "true")
-                    .transition()
-                    .duration(1500)
-                    .ease(d3.easeCubicOut)
-                    .attr("cx", endX)
-                    .attr("cy", endY)
-                    .style("fill", arrowColor)
-                    .style("stroke", normalNodeStrokeColor)
-                    .style("stroke-width", normalNodeStrokeWidth);
+                perturbationTrajectories.push({ key: perturbationResult.key, sourceNodeId: node.id, startX, startY, endX, endY, ghost, line, head, _active: true });
+                updatePerturbationTrajectories();
+
+                node._perturbed = true;
+                node._perturbationOutline = true;
+                node._stroke = selectedNodeStrokeColor;
+                node._strokeWidth = perturbationOutlineStrokeWidth;
+                node._lastPerturbationResult = perturbationResult;
+                perturbationVisualNodes.push({
+                    id: `${node.id}-${perturbationResult.key}`,
+                    text: perturbationResult.text,
+                    sentiment: node.sentiment,
+                    airline: node.airline,
+                    topic_id: node.topic_id,
+                    topic_label: node.topic_label,
+                    _canvasX: endX,
+                    _canvasY: endY,
+                    _fillOverride: getNodeFillColor(node),
+                    _opacity: highlightedNodeOpacity,
+                    _stroke: selectedNodeStrokeColor,
+                    _strokeWidth: perturbationOutlineStrokeWidth,
+                    _keywordHighlight: false,
+                    _perturbationOutline: true,
+                    _perturbationResult: perturbationResult,
+                    _sourceNodeId: node.id
+                });
+                syncActivePerturbationVisualState();
             })
             .catch(error => {
                 console.error("Fetch Error:", error);
@@ -1475,25 +2114,11 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
 });
 
 document.getElementById("btn-clear").addEventListener("click", () => {
-    linkLayer.selectAll("*").remove();
-    nodeLayer.selectAll("circle.node")
-        .classed("selection-muted", false)
-        .attr("data-perturbed", "false")
-        .transition()
-        .duration(800)
-        .attr("cx", d => xScale(d.x))
-        .attr("cy", d => yScale(d.y))
-        .style("fill", d => {
-            if (currentColorEncoding === "airline") return airlineColorScale(d.airline);
-            if (currentColorEncoding === "topic") return d.topic_id === -1 ? "#cbd5e1" : topicColorScale(d.topic_id);
-            return null;
-        })
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    clearPerturbationState();
+    applySelectionVisualState();
+    drawMapCanvas();
 
     document.getElementById("results-area").style.display = selectedNodesData.length ? "block" : "none";
-    resetPerturbationResults();
 });
 
 
@@ -1561,6 +2186,12 @@ if (btnZoomOut) {
     });
 }
 
+if (btnMapNavigation) {
+    btnMapNavigation.addEventListener("click", () => {
+        setMapNavigationMode(!mapNavigationMode);
+    });
+}
+
 if (btnPanSelection) {
     btnPanSelection.addEventListener("click", () => {
         centerSelectionInView(selectedNodesData);
@@ -1605,11 +2236,17 @@ function clearKeywordHighlight() {
         .style("fill", null)
         .style("stroke", null)
         .style("stroke-width", null);
-    nodeLayer.selectAll("circle.node")
-        .classed("dimmed", false)
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    allNodesData.forEach(node => {
+        node._keywordHighlight = false;
+        node._brushSelectedKeywordHighlight = false;
+        if (!node._selected && !node._selectionMuted && !node._dimmed) {
+            node._opacity = normalNodeOpacity;
+            node._stroke = normalNodeStrokeColor;
+            node._strokeWidth = normalNodeStrokeWidth;
+        }
+    });
+    applySelectionVisualState();
+    drawMapCanvas();
 }
 
 // 2. Funzione per Disegnare e Aggiornare il Grafico
@@ -1720,18 +2357,33 @@ function updateTFIDFChart(data) {
                 .style("stroke", b => b.word.toLowerCase() === activeKeyword ? "#0f172a" : null)
                 .style("stroke-width", b => b.word.toLowerCase() === activeKeyword ? "1.5px" : null);
 
-            d3.selectAll("circle.node")
-                .style("opacity", function(nodeData) {
-                    const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                    return hasWord ? highlightedNodeOpacity : 0.05; 
-                })
-                .style("stroke", function(nodeData) {
-                    const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                    return hasWord ? keywordHighlightColor : null;
-                })
-                .style("stroke-width", function(nodeData) {
-                    return nodeData.text.toLowerCase().includes(activeKeyword) ? "2.5px" : null;
-                });
+            allNodesData.forEach(nodeData => {
+                const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
+                const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
+                const isInsideBrushSelection = isBrushPointSelection && selectedNodeIds.has(nodeData.id);
+                nodeData._keywordHighlight = hasWord;
+                nodeData._brushSelectedKeywordHighlight = hasWord && isInsideBrushSelection;
+
+                if (hasWord && isInsideBrushSelection) {
+                    nodeData._opacity = highlightedNodeOpacity;
+                    nodeData._stroke = getBrushSelectedKeywordStrokeColor(nodeData);
+                    nodeData._strokeWidth = brushSelectedKeywordNodeStrokeWidth;
+                } else if (hasWord) {
+                    nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : highlightedNodeOpacity;
+                    nodeData._stroke = keywordHighlightColor;
+                    nodeData._strokeWidth = getKeywordNodeStrokeWidth();
+                } else if (isInsideBrushSelection) {
+                    nodeData._keywordHighlight = false;
+                    nodeData._opacity = highlightedNodeOpacity;
+                    nodeData._stroke = selectedNodeStrokeColor;
+                    nodeData._strokeWidth = getSelectedNodeStrokeWidth();
+                } else {
+                    nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : 0.05;
+                    nodeData._stroke = normalNodeStrokeColor;
+                    nodeData._strokeWidth = normalNodeStrokeWidth;
+                }
+            });
+            drawMapCanvas();
         }
     });
 } 
@@ -1748,6 +2400,28 @@ function applyFilters() {
 
     // Aggiorniamo il numeretto dello slider
     document.getElementById("word-count-display").innerText = maxLength === 40 ? "All" : maxLength;
+
+    allNodesData.forEach(d => {
+        const wordCount = d.text.split(/\s+/).length;
+        const isDimmed = Boolean(
+            (keyword && !d.text.toLowerCase().includes(keyword)) ||
+            (sentiment !== "all" && d.sentiment !== sentiment) ||
+            (airline !== "all" && d.airline !== airline) ||
+            (maxLength < 40 && wordCount > maxLength)
+        );
+
+        d._dimmed = isDimmed;
+        if (isDimmed) {
+            d._opacity = 0.1;
+        } else if (!d._selected && !d._selectionMuted && !d._keywordHighlight) {
+            d._opacity = normalNodeOpacity;
+            d._stroke = normalNodeStrokeColor;
+            d._strokeWidth = normalNodeStrokeWidth;
+        }
+    });
+    applySelectionVisualState();
+    drawMapCanvas();
+    return;
 
     // 2. Passiamo al setaccio tutti i nodi sulla mappa
     nodeLayer.selectAll("circle.node")
@@ -1797,6 +2471,13 @@ let activeTopicSelectionId = null;
 let topicSelectorValueBeforeClick = null;
 let currentTopicWords = null;
 
+function clearBertopicMapHighlight() {
+    allNodesData.forEach(node => {
+        node._bertopicHighlight = false;
+        node._brushSelectedBertopicHighlight = false;
+    });
+}
+
 function clearTopicSelection() {
     activeTopicSelectionId = null;
 
@@ -1806,10 +2487,13 @@ function clearTopicSelection() {
     }
 
     renderTopicBarchart(null);
-    nodeLayer.selectAll("circle.node")
-        .style("opacity", normalNodeOpacity)
-        .style("stroke", normalNodeStrokeColor)
-        .style("stroke-width", normalNodeStrokeWidth);
+    if (interactionMode === "brush" && selectionMode === "point") {
+        clearBertopicMapHighlight();
+    } else {
+        resetNodeVisuals();
+    }
+    applySelectionVisualState();
+    drawMapCanvas();
 }
 
 function applyTopicSelection(selectedId) {
@@ -1822,12 +2506,36 @@ function applyTopicSelection(selectedId) {
     // CRUCIALE: Usiamo [currentTopicLens] invece di ".words"
     renderTopicBarchart(topicData[currentTopicLens]);
 
-    d3.selectAll("circle.node")
-        .transition()
-        .duration(400)
-        .style("opacity", d => d.topic_id === selectedId ? highlightedNodeOpacity : 0.05)
-        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
-        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+    if (interactionMode === "brush" && selectionMode === "point") {
+        clearBertopicMapHighlight();
+        applySelectionVisualState();
+        allNodesData.forEach(d => {
+            const matchesTopic = d.topic_id === selectedId;
+            const isInsideBrushSelection = selectedNodeIds.has(d.id);
+
+            if (!matchesTopic) {
+                return;
+            }
+
+            d._bertopicHighlight = true;
+            d._brushSelectedBertopicHighlight = isInsideBrushSelection;
+            d._stroke = getBertopicStrokeColor(d);
+            d._strokeWidth = isInsideBrushSelection ? brushSelectedBertopicNodeStrokeWidth : bertopicNodeStrokeWidth;
+            if (isInsideBrushSelection) {
+                d._opacity = highlightedNodeOpacity;
+            }
+        });
+        drawMapCanvas();
+        return;
+    }
+
+    allNodesData.forEach(d => {
+        const matchesTopic = d.topic_id === selectedId;
+        d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+        d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
+        d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+    });
+    drawMapCanvas();
 }
 d3.selectAll('input[name="topicLens"]').on("change", function() {
     // 1. Aggiorna la variabile globale con il value del bottone cliccato
@@ -1842,8 +2550,12 @@ d3.selectAll('input[name="topicLens"]').on("change", function() {
             // Ridisegna il barchart con la nuova lente (es. words_raw o words_no_brands)
             renderTopicBarchart(topicData[currentTopicLens]);
             
-            // Ripristina la mappa
-            highlightTweetsByWord(null); 
+            if (interactionMode === "brush" && selectionMode === "point") {
+                applyTopicSelection(activeTopicSelectionId);
+            } else {
+                // Ripristina la mappa
+                highlightTweetsByWord(null);
+            }
         }
     }
 });
@@ -1884,8 +2596,8 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
             // Se il topic coincide, massima opacità. Altrimenti quasi trasparenti.
             return d.topic_id === selectedId ? highlightedNodeOpacity : 0.05; 
         })
-        .style("stroke", d => d.topic_id === selectedId ? "#000" : "none")
-        .style("stroke-width", d => d.topic_id === selectedId ? 1.5 : 0);
+        .style("stroke", d => d.topic_id === selectedId ? selectedNodeStrokeColor : normalNodeStrokeColor)
+        .style("stroke-width", d => d.topic_id === selectedId ? selectedNodeStrokeWidth : normalNodeStrokeWidth);
 
     });
 
@@ -2042,6 +2754,64 @@ function renderTopicBarchart(words) {
 }
 
 function highlightTweetsByWord(word) {
+    if (!word) {
+        if (interactionMode === "brush" && selectionMode === "point") {
+            clearBertopicMapHighlight();
+            applySelectionVisualState();
+            drawMapCanvas();
+            return;
+        }
+
+        allNodesData.forEach(d => {
+            const matchesTopic = d.topic_id === activeTopicSelectionId;
+            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+            d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
+            d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+        });
+        drawMapCanvas();
+        return;
+    }
+
+    const lowerWordForCanvas = word.toLowerCase();
+    const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
+    if (isBrushPointSelection) {
+        clearBertopicMapHighlight();
+        applySelectionVisualState();
+    }
+
+    allNodesData.forEach(d => {
+        const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWordForCanvas);
+        const isSelectedByBrush = isBrushPointSelection && selectedNodeIds.has(d.id);
+
+        if (isBrushPointSelection) {
+            if (isSelectedByBrush) {
+                d._opacity = highlightedNodeOpacity;
+                d._stroke = textContainsWord ? getBertopicStrokeColor(d) : normalNodeStrokeColor;
+                d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : normalNodeStrokeWidth;
+                d._brushSelectedBertopicHighlight = textContainsWord;
+            } else if (textContainsWord) {
+                d._bertopicHighlight = true;
+                d._opacity = d._opacity ?? normalNodeOpacity;
+                d._stroke = getBertopicStrokeColor(d);
+                d._strokeWidth = bertopicNodeStrokeWidth;
+            }
+            return;
+        }
+
+        if (d.topic_id !== activeTopicSelectionId) {
+            d._opacity = 0.05;
+            d._stroke = normalNodeStrokeColor;
+            d._strokeWidth = normalNodeStrokeWidth;
+            return;
+        }
+
+        d._opacity = textContainsWord ? highlightedNodeOpacity : 0.2;
+        d._stroke = textContainsWord ? selectedNodeStrokeColor : normalNodeStrokeColor;
+        d._strokeWidth = textContainsWord ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+    });
+    drawMapCanvas();
+    return;
+
     const dots = d3.selectAll("circle.node"); 
 
     if (!word) {
@@ -2049,8 +2819,8 @@ function highlightTweetsByWord(word) {
         // Ripristiniamo la mappa mostrando solo i tweet del topic selezionato.
         dots.transition().duration(300)
             .style("opacity", d => d.topic_id === activeTopicSelectionId ? highlightedNodeOpacity : 0.05)
-            .style("stroke", d => d.topic_id === activeTopicSelectionId ? "#000" : "none")
-            .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? 1.5 : 0);
+            .style("stroke", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeColor : normalNodeStrokeColor)
+            .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeWidth : normalNodeStrokeWidth);
         return;
     }
 
@@ -2069,14 +2839,14 @@ function highlightTweetsByWord(word) {
             return textContainsWord ? highlightedNodeOpacity : 0.2; 
         })
         .style("stroke", d => {
-            if (d.topic_id !== activeTopicSelectionId) return "none";
+            if (d.topic_id !== activeTopicSelectionId) return normalNodeStrokeColor;
             const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            return textContainsWord ? "#000" : "none"; // Bordo nero solo ai match esatti
+            return textContainsWord ? selectedNodeStrokeColor : normalNodeStrokeColor;
         })
         .style("stroke-width", d => {
-            if (d.topic_id !== activeTopicSelectionId) return 0;
+            if (d.topic_id !== activeTopicSelectionId) return normalNodeStrokeWidth;
             const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            return textContainsWord ? 2 : 0; 
+            return textContainsWord ? selectedNodeStrokeWidth : normalNodeStrokeWidth; 
         });
 }
 
@@ -2106,6 +2876,7 @@ window.addEventListener("resize", () => {
     height = rect.height;
 
     svg.attr("width", width).attr("height", height);
+    resizeMapCanvas();
 
     if (allNodesData && allNodesData.length > 0) {
         const margin = mapMargin;
@@ -2118,30 +2889,21 @@ window.addEventListener("resize", () => {
         brush.extent([[0, 0], [width, height]]);
         brushLayer.call(brush);
 
-        // Riposiziona i nodi base della mappa
-        nodeLayer.selectAll("circle.node")
-            .attr("cx", d => xScale(d.x))
-            .attr("cy", d => yScale(d.y));
-            
         // Elimina i collegamenti temporanei per evitare un offset visivo
         linkLayer.selectAll("*").remove();
+        perturbationTrajectories = [];
+        perturbationVisualNodes = [];
+        allNodesData.forEach(node => {
+            node._perturbed = false;
+            node._canvasX = null;
+            node._canvasY = null;
+            node._fillOverride = null;
+        });
 
         // Ricalcola gli assi considerando lo zoom corrente
         const currentTransform = d3.zoomTransform(svg.node());
-        xAxisGroup.attr("transform", `translate(0,${height - margin.bottom})`)
-            .call(d3.axisBottom(currentTransform.rescaleX(xScale)).ticks(axisTickCount));
-        yAxisGroup.attr("transform", `translate(${margin.left},0)`)
-            .call(d3.axisLeft(currentTransform.rescaleY(yScale)).ticks(axisTickCount));
-
-        // Aggiorna la posizione delle etichette degli assi "UMAP 1" e "UMAP 2"
-        svg.selectAll(".axis-label").each(function() {
-            const isYAxis = d3.select(this).attr("transform") === "rotate(-90)";
-            if (isYAxis) {
-                d3.select(this).attr("x", -height / 2);
-            } else {
-                d3.select(this).attr("x", width / 2).attr("y", height - 28);
-            }
-        });
+        keepAxesVisible(currentTransform);
+        drawMapCanvas();
     }
 
     // 2. Ridimensiona i grafici nel pannello dei dettagli
@@ -2157,4 +2919,3 @@ window.addEventListener("resize", () => {
         renderTopicBarchart(currentTopicWords);
     }
 });
-
