@@ -22,10 +22,36 @@ function postJson(path, payload) {
 }
 
 const sentimentColors = {
-    positive: "#22c55e",
-    negative: "#ef4444",
-    neutral: "#94a3b8"
+    positive: "#91cf60",
+    negative: "#fc8d59",
+    neutral: "#ffffbf"
 };
+
+const topicPalette = [
+    "#a6cee3",
+    "#1f78b4",
+    "#b2df8a",
+    "#33a02c",
+    "#fb9a99",
+    "#e31a1c",
+    "#fdbf6f",
+    "#ff7f00",
+    "#cab2d6",
+    "#6a3d9a",
+    "#ffff99",
+    "#b15928"
+];
+
+const airlinePalette = [
+    "#7fc97f",
+    "#beaed4",
+    "#fdc086",
+    "#ffff99",
+    "#386cb0",
+    "#f0027f"
+];
+
+const outlierTopicColor = "#d3d3d3a6";
 
 // Dizionario per i nomi manuali dei Topic 
 const manualTopicNames = {
@@ -160,8 +186,8 @@ let selectedNodesData = [];
 let selectedNodeIds = new Set();
 let brushClusterSourceNodes = [];
 let canvasNodeRadius = 6;
-let airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10);
-let topicColorScale = d3.scaleOrdinal(d3.schemeCategory10);
+let airlineColorScale = d3.scaleOrdinal().range(airlinePalette);
+let topicColorScale = d3.scaleOrdinal().range(topicPalette);
 let currentColorEncoding = "sentiment";
 let interactionMode = "click";
 let selectionMode = "point";
@@ -518,7 +544,7 @@ function getNodeFillColor(node) {
         return airlineColorScale(node.airline);
     }
     if (currentColorEncoding === "topic") {
-        return node.topic_id === -1 ? "#cbd5e1" : topicColorScale(node.topic_id);
+        return node.topic_id === -1 ? "#d3d3d3a6" : topicColorScale(node.topic_id);
     }
 
     return sentimentColors[node.sentiment] || "#64748b";
@@ -912,17 +938,30 @@ function normalizePerturbationHighlight(html) {
 
 function setPerturbationDisplay(result) {
     const output = document.getElementById("new-text");
+    const resultsArea = document.getElementById("results-area");
     if (!result) {
         output.innerHTML = "<span>-</span>";
+        if (resultsArea) resultsArea.style.display = "none";
         return;
     }
+    if (resultsArea) resultsArea.style.display = "block";
 
     const label = perturbationLabels[result.type] || result.type;
     let perturbedHtml = "";
-    
+    const noHighlightTypes = [
+        "llm_paraphrase",
+        "llm_opposite",
+        "shuffle",
+    ];
+
     if (result.type === "dict_remove") {
         const originalText = result.originalText || result.text;
         perturbedHtml = highlightRemovedText(originalText, result.text);
+    } else if (result.type === "noise" || result.type === "typo" || result.type === "leetspeak") {
+        const originalText = result.originalText || result.text;
+        perturbedHtml = highlightChangedText(originalText, result.text);
+    } else if (noHighlightTypes.includes(result.type)) {
+        perturbedHtml = escapeHtml(result.text);
     } else if (result.displayText && result.displayText !== result.text) {
         perturbedHtml = normalizePerturbationHighlight(result.displayText);
     } else {
@@ -986,6 +1025,15 @@ function renderPerturbationCarousel() {
         chip.type = "button";
         chip.className = `perturbation-chip${result.key === activePerturbationKey ? " active" : ""}`;
         chip.textContent = `${perturbationLabels[result.type] || result.type}`;
+        
+        // Apply perturbation color styling when active
+        if (result.key === activePerturbationKey) {
+            const color = perturbationColors[result.type] || "#334155";
+            chip.style.borderColor = color;
+            chip.style.color = color;
+            chip.style.fontWeight = "600";
+        }
+        
         chip.addEventListener("click", () => {
             activePerturbationKey = result.key;
             setPerturbationDisplay(result);
@@ -1087,7 +1135,7 @@ function getSelectionDistributionConfigs(nodes) {
             title: "Topics",
             data: buildDistributionData(countByTopic, topicOrder),
             labelAccessor: label => getTopicLabel(label),
-            colorAccessor: label => label === -1 ? "#cbd5e1" : topicColorScale(label)
+            colorAccessor: label => label === -1 ? outlierTopicColor : topicColorScale(label)
         }
     };
 }
@@ -1114,7 +1162,7 @@ function renderSelectionVerticalBarChart(container, nodes) {
         return;
     }
 
-    const margin = { top: 34, right: 12, bottom: 58, left: 44 };
+    const margin = { top: 34, right: 10, bottom: 69, left: 48 };
     const chartWidth = Math.max(containerWidth || 280, 260);
     const chartHeight = 220;
     const innerWidth = chartWidth - margin.left - margin.right;
@@ -1169,6 +1217,28 @@ function renderSelectionVerticalBarChart(container, nodes) {
             .attr("font-size", "11px")
             .attr("transform", "rotate(-28)")
             .style("text-anchor", "end"));
+
+    // Axis labels: horizontal (category) and vertical (percentage)
+    svg.append("text")
+        .attr("class", "selection-x-label")
+        .attr("x", margin.left + innerWidth / 2)
+        .attr("y", chartHeight - 8)
+        .attr("text-anchor", "middle")
+        .style("font-size", "0.95rem")
+        .style("font-weight", "600")
+        .style("fill", "#475569")
+        .text(config.title);
+
+    svg.append("text")
+        .attr("class", "selection-y-label")
+        .attr("transform", `rotate(-90)`)
+        .attr("x", -(margin.top + innerHeight / 2))
+        .attr("y", 14)
+        .attr("text-anchor", "middle")
+        .style("font-size", "0.95rem")
+        .style("font-weight", "600")
+        .style("fill", "#475569")
+        .text("Percentage (%)");
 
     g.selectAll("rect")
         .data(config.data)
@@ -1279,7 +1349,7 @@ function getClusterColor(node) {
         case "airline":
             return airlineColorScale(node.airline || "Unknown");
         case "topic":
-            return node.topic_id === -1 ? "#cbd5e1" : topicColorScale(node.topic_id);
+            return node.topic_id === -1 ? outlierTopicColor : topicColorScale(node.topic_id);
         default:
             return "#64748b";
     }
@@ -1357,7 +1427,7 @@ function renderMapLegends(nodes = []) {
     }
 
     legendItems.innerHTML = legendData.map(([label, count]) => {
-        let color = currentColorEncoding === "airline" ? airlineColorScale(label) : (currentColorEncoding === "topic" ? (label === -1 ? "#cbd5e1" : topicColorScale(label)) : (sentimentColors[label] || "#64748b"));
+        let color = currentColorEncoding === "airline" ? airlineColorScale(label) : (currentColorEncoding === "topic" ? (label === -1 ? outlierTopicColor : topicColorScale(label)) : (sentimentColors[label] || "#64748b"));
         let displayLabel = currentColorEncoding === "topic" ? getTopicLabel(label) : label;
         
         return `
@@ -1392,7 +1462,7 @@ function updateSelectionUI() {
     updateBertopicSelectionSummary(selectedNodesData);
     const selectionCountLine = document.getElementById("selection-count-line");
     if (selectionCountLine) {
-        selectionCountLine.style.display = (interactionMode === "click" && selectionMode === "point") ? "none" : "block";
+        selectionCountLine.style.display = (interactionMode === "click" && selectionMode === "point") || (selectionMode === "cluster") ? "none" : "block";
     }
     if (selectionAttributeGrid) {
         selectionAttributeGrid.style.display = (singleSelection && !(interactionMode === "click" && selectionMode === "point")) ? "grid" : "none";
@@ -1594,25 +1664,43 @@ function setBrushMode(active) {
         .style("pointer-events", active ? "all" : "none");
 }
 
+let activeSelectionInspector = "tfidf";
+
+function setSelectionInspector(view) {
+    activeSelectionInspector = view;
+    renderSelectionInspectorToggle();
+    updatePanelVisibility();
+}
+
+function renderSelectionInspectorToggle() {
+    const tfidfBtn = document.getElementById("toggle-tfidf");
+    const bertopicBtn = document.getElementById("toggle-bertopic");
+    if (tfidfBtn) tfidfBtn.classList.toggle("active", activeSelectionInspector === "tfidf");
+    if (bertopicBtn) bertopicBtn.classList.toggle("active", activeSelectionInspector === "bertopic");
+}
+
 function updatePanelVisibility() {
     const tokenPanel = document.getElementById("token-analysis-perturbation-card");
     const tfidfPanel = document.getElementById("tfidf-panel");
     const bertopicPanel = document.getElementById("bertopic-card");
-    
-    if (selectionMode === "cluster") {
-        if (tokenPanel) tokenPanel.style.display = "none";
-        if (tfidfPanel) tfidfPanel.style.display = "block";
-        if (bertopicPanel) bertopicPanel.style.display = "block";
-    } else if (interactionMode === "click" && selectionMode === "point") {
+    const inspectorCard = document.getElementById("selection-inspector-card");
+    const showInspector = !(interactionMode === "click" && selectionMode === "point");
+
+    if (inspectorCard) {
+        inspectorCard.style.display = showInspector ? "block" : "none";
+    }
+
+    if (interactionMode === "click" && selectionMode === "point") {
         if (tokenPanel) tokenPanel.style.display = "block";
         if (tfidfPanel) tfidfPanel.style.display = "none";
         if (bertopicPanel) bertopicPanel.style.display = "none";
     } else {
         if (tokenPanel) tokenPanel.style.display = "none";
-        if (tfidfPanel) tfidfPanel.style.display = "block";
-        if (bertopicPanel) bertopicPanel.style.display = "block";
+        if (tfidfPanel) tfidfPanel.style.display = activeSelectionInspector === "tfidf" ? "block" : "none";
+        if (bertopicPanel) bertopicPanel.style.display = activeSelectionInspector === "bertopic" ? "block" : "none";
     }
 
+    renderSelectionInspectorToggle();
     updateOriginalTextVisibility();
 }
 
@@ -1628,7 +1716,7 @@ function updateOriginalTextVisibility() {
         originalTextBlock.style.display = hideBrushClusterDetails ? "none" : "block";
     }
     if (selectionCountLine) {
-        selectionCountLine.style.display = hideSelectionLine ? "none" : "block";
+        selectionCountLine.style.display = hideSelectionLine || (selectionMode === "cluster") ? "none" : "block";
     }
 }
 
@@ -1744,6 +1832,7 @@ svg.on("click.resetDim", function (event) {
             return;
         }
 
+        clearSelection({ resetPerturbations: true });
         originalClickedNode = clickedNode;
         brushClusterSourceNodes = [];
         const nodesToSelect = resolveClickSelectionMode([clickedNode], clickedNode);
@@ -1787,8 +1876,8 @@ d3.csv("base_map.csv", function (d) {
         .range([height - margin.bottom, margin.top]);
 
     const bigDataset = data.length > 2000;
-    airlineColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.airline))]);
-    topicColorScale = d3.scaleOrdinal(d3.schemeCategory10).domain([...new Set(data.map(d => d.topic_id))].filter(t => t !== -1).sort((a, b) => a - b));
+    airlineColorScale = d3.scaleOrdinal().domain([...new Set(data.map(d => d.airline))]).range(airlinePalette);
+    topicColorScale = d3.scaleOrdinal().domain([...new Set(data.map(d => d.topic_id))].filter(t => t !== -1).sort((a, b) => a - b)).range(topicPalette);
     renderMapLegends();
     canvasNodeRadius = bigDataset ? 2.6 : baseNodeRadius;
     resizeMapCanvas();
@@ -2153,6 +2242,19 @@ if (selectionClusterBtn) {
     });
 }
 
+const toggleTfidfBtn = document.getElementById("toggle-tfidf");
+const toggleBertopicBtn = document.getElementById("toggle-bertopic");
+if (toggleTfidfBtn) {
+    toggleTfidfBtn.addEventListener("click", () => {
+        setSelectionInspector("tfidf");
+    });
+}
+if (toggleBertopicBtn) {
+    toggleBertopicBtn.addEventListener("click", () => {
+        setSelectionInspector("bertopic");
+    });
+}
+
 clusterEncodingButtons.forEach(button => {
     button.addEventListener("click", () => {
         setClusterEncoding(button.dataset.encoding);
@@ -2449,6 +2551,8 @@ function applyFilters() {
         });
 }
 
+// DIAGNOSTIC FILTERS - COMMENTED OUT (filter-controller no longer in HTML)
+/*
 // 3. Attacchiamo i Listener per far scattare i filtri in tempo reale
 document.getElementById("filter-keyword").addEventListener("input", applyFilters);
 document.getElementById("filter-sentiment").addEventListener("change", applyFilters);
@@ -2463,13 +2567,14 @@ document.getElementById("btn-reset-filters").addEventListener("click", () => {
     document.getElementById("filter-length").value = 40;
     applyFilters(); // Ricalcola per togliere il dimming a tutti
 });
+*/
 
 
 // BERTopic
+let currentTopicWords = null;
 let allTopicsData = [];
 let activeTopicSelectionId = null;
 let topicSelectorValueBeforeClick = null;
-let currentTopicWords = null;
 
 function clearBertopicMapHighlight() {
     allNodesData.forEach(node => {
