@@ -151,10 +151,10 @@
         }
 
         .tfidf-bar:hover {
-            fill: #7fcdbb; /* Colore arancione al passaggio del mouse */
+            fill: #7fcdbb; 
         }
 
-        /* Quando una barra è attiva (cliccata) */
+       
         .tfidf-bar.active {
             fill: #edf8b1 !important; /* Rosso scuro */
             stroke: black;
@@ -163,8 +163,8 @@
 
         .token {
             display: inline-block;
-            padding: 1px 4px;      /* Poco padding per avvicinare le lettere */
-            margin: 0px 1px;       /* Quasi zero margine per fluidità di lettura */
+            padding: 1px 4px;      
+            margin: 0px 1px;       
             border-radius: 3px;
             cursor: pointer;
             transition: all 0.15s ease-in-out;
@@ -177,7 +177,7 @@
             border-color: #94a3b8;
         }
 
-        /* BERTopic layout: make topic selector expand to fill card height */
+       
         #bertopic-card { display: flex; flex-direction: column; }
         .bertopic-row { display: flex; gap: 15px; margin-top: 10px; flex: 1 1 auto; min-height: 140px; }
         .bertopic-left { flex: 1 1 40%; border-right: 1px solid #e2e8f0; padding-right: 10px; display: flex; flex-direction: column; min-height: 0; }
@@ -287,7 +287,7 @@
                 </div>
             </div>
     
-            <!-- Il contenitore con lo stile pulito che abbiamo definito -->
+           
             <div id="tw-text" style="line-height: 2; font-size: 1.05rem; border: 1px solid #e2e8f0; padding: 15px 20px; border-radius: 6px; background: #ffffff; min-height: 80px; color: #0f172a; margin-top: 15px; margin-bottom: 15px;">
                 <em style="color: #94a3b8; font-size: 0.9rem;">Select a single tweet from the map to view token weights...</em>
             </div>
@@ -372,7 +372,7 @@
                     <div class="bertopic-left">
                         <div style="font-size: 0.95rem; color: #64748b; margin-bottom: 5px;">Select a Topic:</div>
                         <select id="topic-selector" size="10" style="width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; padding: 5px; outline: none; cursor: pointer;">
-                            <!-- Verrà popolato da Javascript -->
+                            
                         </select>
                     </div>
                     <div style="flex: 1; display: flex; flex-direction: column;">
@@ -404,41 +404,7 @@
             </div>
         </div>
 
-        <!-- DIAGNOSTIC FILTERS (SLICING) - COMMENTED OUT
-        <div class="card" id="filter-controller">
-            <div class="card-title">DIAGNOSTIC FILTERS (SLICING)</div>
-            <div class="stack-sm">
-                <input type="text" id="filter-keyword" placeholder="Search keyword (e.g., delay, bag)..." style="width: 100%; padding: 6px; border: 1px solid #94a3b8; border-radius: 4px;">
-
-                <div class="flex-row">
-                    <select id="filter-sentiment" style="flex: 1;">
-                        <option value="all">All Sentiments</option>
-                        <option value="positive">Positive</option>
-                        <option value="neutral">Neutral</option>
-                        <option value="negative">Negative</option>
-                    </select>
-
-                    <select id="filter-airline" style="flex: 1;">
-                        <option value="all">All Airlines</option>
-                        <option value="Southwest">Southwest</option>
-                        <option value="United">United</option>
-                        <option value="Delta">Delta</option>
-                        <option value="US Airways">US Airways</option>
-                        <option value="American">American</option>
-                        <option value="Virgin America">Virgin America</option>
-                    </select>
-                </div>
-
-                <div class="flex-row" style="align-items: center; justify-content: space-between; margin-top: 5px;">
-                     <span style="font-size: 0.82rem; color: #475569;">Max Words: <strong id="word-count-display">All</strong></span>
-                     <input type="range" id="filter-length" min="1" max="40" value="40" style="flex: 0.7;">
-                </div>
-
-                <button id="btn-reset-filters" style="width: 100%; margin-top: 10px; font-size: 0.82rem; border: none; background: transparent; text-decoration: underline; cursor: pointer; color: #475569;">Reset Filters</button>
-            </div>
-        </div>
-        -->
-
+    
        
 
        
