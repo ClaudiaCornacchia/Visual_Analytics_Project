@@ -271,13 +271,12 @@ function updateBertopicSelectionSummary(nodes) {
     const topicData = getTopicDataById(dominantTopicId);
     if (!topicData) return;
 
-    // Auto-select the topic in the dropdown
+   
     const selector = document.getElementById("topic-selector");
     if (selector) {
         selector.value = String(dominantTopicId);
     }
 
-    // Render the bar chart for the dominant topic's keywords
     renderTopicBarchart(topicData[currentTopicLens]);
 }
 
@@ -1026,7 +1025,6 @@ function renderPerturbationCarousel() {
         chip.className = `perturbation-chip${result.key === activePerturbationKey ? " active" : ""}`;
         chip.textContent = `${perturbationLabels[result.type] || result.type}`;
         
-        // Apply perturbation color styling when active
         if (result.key === activePerturbationKey) {
             const color = perturbationColors[result.type] || "#334155";
             chip.style.borderColor = color;
@@ -1218,7 +1216,7 @@ function renderSelectionVerticalBarChart(container, nodes) {
             .attr("transform", "rotate(-28)")
             .style("text-anchor", "end"));
 
-    // Axis labels: horizontal (category) and vertical (percentage)
+    
     svg.append("text")
         .attr("class", "selection-x-label")
         .attr("x", margin.left + innerWidth / 2)
@@ -1450,7 +1448,7 @@ function updateSelectionUI() {
     const hasSelection = selectedNodesData.length > 0;
     const singleSelection = selectedNodesData.length === 1;
 
-    // if (btnPerturb) btnPerturb.disabled = !hasSelection; // This is now handled by updatePerturbationButtonState()
+    
     if (btnClear) btnClear.disabled = !hasSelection;
     setCenterButtonEnabled(hasSelection);
     if (btnClearSelection) btnClearSelection.disabled = !hasSelection;
@@ -1476,7 +1474,7 @@ function updateSelectionUI() {
         document.getElementById("tw-text-simple").innerText = "Select a point on the map to see token weights...";
         document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
-        updatePerturbationButtonState(); // Update button state when selection is cleared
+        updatePerturbationButtonState(); 
         return;
     }
 
@@ -1489,7 +1487,7 @@ function updateSelectionUI() {
         document.getElementById("tw-text-simple").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         document.getElementById("tw-text").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
         d3.select("#heatmap-container").html("<em>Heatmap available for a single selected tweet.</em>");
-        updatePerturbationButtonState(); // Update button state for multiple selection
+        updatePerturbationButtonState(); 
         return;
     }
 
@@ -1508,7 +1506,7 @@ function updateSelectionUI() {
         setPerturbationDisplay(null);
     }
     //renderHeatmap(node.text);
-    // updatePerturbationButtonState() will be called by renderTokenAnalysis when a token is clicked, or initially here if no token is clicked yet.
+    // updatePerturbationButtonState() .
 }
 
 function showPerturbedTweetDetails(visualNode) {
@@ -1570,7 +1568,7 @@ function clearSelection(options = {}) {
 
     targetWordForPerturbation = null;
     if (document.getElementById("target-word-info")) document.getElementById("target-word-info").style.display = "none";
-    updatePerturbationButtonState(); // Update button state after clearing selection
+    updatePerturbationButtonState(); 
     updateTFIDFChart([]);
     updateSelectionUI();
 }
@@ -1598,7 +1596,7 @@ function selectNodes(nodes, options = {}) {
     if (selectedNodesData.length > 0) {
         setCenterButtonEnabled(true);
     }
-    updatePerturbationButtonState(); // Update button state after selection changes
+    updatePerturbationButtonState(); 
 
     // Gestione TF-IDF
     const loadingText = document.getElementById("tfidf-loading");
@@ -1911,7 +1909,7 @@ d3.csv("base_map.csv", function (d) {
 
     setResetButtonVisibility(false);
     resetPerturbationResults();
-    updatePerturbationButtonState(); // Initial call to set button and input states
+    updatePerturbationButtonState(); 
     updateSelectionUI();
 }).catch(function (error) {
     console.error("Error loading CSV:", error);
@@ -1920,7 +1918,7 @@ d3.csv("base_map.csv", function (d) {
 
 // Token Analysis
 function renderTokenAnalysis(text) {
-    // Opzionale: se hai ancora il div per il testo semplice, lascialo, altrimenti puoi rimuovere questa riga
+    
     d3.select("#tw-text-simple").text(text);
     
     const container = d3.select("#tw-text");
@@ -1933,11 +1931,10 @@ function renderTokenAnalysis(text) {
                 return;
             }
 
-            container.html(""); // Svuota il contenitore
+            container.html(""); 
             
-            // 1. Calcola il massimo per la scala colori
             const maxWeight = d3.max(data, d => d.weight) || 0.01;
-            // DEBUG: print the maximum weight and all token weights
+        
             console.log("Max token weight:", maxWeight);
             console.table(
                 data.map(d => ({
@@ -1959,7 +1956,7 @@ function renderTokenAnalysis(text) {
                     "#fef9c3"  // pale yellow
                 ]));
 
-            // Helper: compute relative luminance for contrast-aware inner stroke
+        
             function colorToLuminance(cssColor) {
                 if (!cssColor) return 1;
                 let r, g, b;
@@ -1994,7 +1991,7 @@ function renderTokenAnalysis(text) {
                 return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
             }
 
-            // 2. Disegna gli span (le parole) con un 'margine interno' (inset stroke)
+        
             data.forEach(item => {
                 const bg = colorScale(item.weight);
                 const fg = item.weight > (maxWeight * 0.5) ?  "#0f172a" : "#ffffff";
@@ -2010,21 +2007,21 @@ function renderTokenAnalysis(text) {
                     .style("box-shadow", "none")
                     .text(`${item.word} `)
                     .on("click", function(event) {
-                        // reset other tokens
+                      
                         container.selectAll(".token")
                             .style("box-shadow", "none")
                             .style("outline", "none");
 
-                        // choose a contrasting inner stroke color: white for dark bg, black for light bg
+                       
                         const lum = colorToLuminance(bg);
                         const innerColor = lum < 0.5 ? 'rgba(255,255,255,0.92)' : 'rgba(0,0,0,0.85)';
 
-                        // apply inset stroke using box-shadow (inset) for an inner white margin
+                       
                         d3.select(this)
                             .style("box-shadow", `inset 0 0 0 3px ${innerColor}, 0 2px 6px rgba(0,0,0,0.12)`)
                             .style("outline", "none");
 
-                        // save selection
+                    
                         targetWordForPerturbation = item.word.trim();
                         const displayEl = document.getElementById("target-word-display");
                         if (displayEl) displayEl.innerText = targetWordForPerturbation;
@@ -2062,7 +2059,7 @@ function updatePerturbationButtonState() {
         customWordInput.style.display = "none";
     }
 
-    // Manage visibility of target word info
+   
     if (isWordBased && targetWordForPerturbation && hasSingleSelection) {
         targetWordInfo.style.display = "block";
         document.getElementById("target-word-display").innerText = targetWordForPerturbation;
@@ -2070,7 +2067,6 @@ function updatePerturbationButtonState() {
         targetWordInfo.style.display = "none";
     }
 
-    // Determine if perturbation button should be enabled
     if (hasSingleSelection) {
        if (currentPerturbationType === "custom_replace") {
             canPerturb = customWordInput.value.trim() !== "";
@@ -2081,35 +2077,33 @@ function updatePerturbationButtonState() {
     btnPerturb.disabled = !canPerturb;
 }
 
-// Cancella la parola target 
 const btnClearTarget = document.getElementById("btn-clear-target");
 if (btnClearTarget) {
     btnClearTarget.addEventListener("click", () => {
         targetWordForPerturbation = null;
         document.getElementById("target-word-info").style.display = "none";
-        d3.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)"); // Deseleziona tutti i token
-        updatePerturbationButtonState(); // Update button state and visibility
+        d3.selectAll(".token").style("outline", "none").style("box-shadow", "none").style("transform", "scale(1)"); 
+        updatePerturbationButtonState(); 
     });
 }
 
-// Gestisce la visibilità della casella di input custom e lo stato del pulsante
+
 document.getElementById("perturbation-select").addEventListener("change", (e) => {
     updatePerturbationButtonState();
 });
 
-// Aggiunge un listener per l'input della parola custom per aggiornare lo stato del pulsante
 document.getElementById("custom-word-input").addEventListener("input", () => {
     updatePerturbationButtonState();
 });
 
-// Invio dati perturbazione ---
+
 document.getElementById("btn-perturb").addEventListener("click", () => {
-    if (selectedNodesData.length !== 1) { // Enforce single selection for perturbation
+    if (selectedNodesData.length !== 1) { 
         console.warn("Perturbation requires a single tweet selection.");
         return;
     }
 
-    const node = selectedNodesData[0]; // Only one node for perturbation
+    const node = selectedNodesData[0];
     const perturbType = document.getElementById("perturbation-select").value;
     const replacement = document.getElementById("custom-word-input").value.trim();
     const arrowColor = perturbationColors[perturbType];
@@ -2301,12 +2295,10 @@ if (btnPanSelection) {
     });
 }
 
-// FEATURE: TF-IDF KEYWORD BAR CHART 
 
-// 1. Setup Struttura SVG per il Bar Chart
 const tfMargin = {top: 20, right: 30, bottom: 40, left: 100};
 const tfContainer = document.getElementById('tfidf-panel');
-let tfWidth = Math.max(tfContainer.clientWidth - 20, 300); // Evita larghezze negative se nascosto
+let tfWidth = Math.max(tfContainer.clientWidth - 20, 300); 
 const tfHeight = 300;
 
 const tfSvg = d3.select("#tfidf-chart")
@@ -2321,14 +2313,13 @@ const tfSvg = d3.select("#tfidf-chart")
 let tfInnerWidth = tfWidth - tfMargin.left - tfMargin.right;
 const tfInnerHeight = tfHeight - tfMargin.top - tfMargin.bottom;
 
-// Scale (Y per le parole, X per il punteggio)
 const tfYScale = d3.scaleBand().range([0, tfInnerHeight]).padding(0.2);
 let tfXScale = d3.scaleLinear().range([0, tfInnerWidth]);
 
 const tfYAxisGroup = tfSvg.append("g").attr("class", "y-axis");
 const tfXAxisGroup = tfSvg.append("g").attr("transform", `translate(0,${tfInnerHeight})`).attr("class", "x-axis");
 
-let activeKeyword = null; // Memorizza la parola attualmente cliccata
+let activeKeyword = null; 
 let currentTfidfData = null;
 
 function clearKeywordHighlight() {
@@ -2351,19 +2342,18 @@ function clearKeywordHighlight() {
     drawMapCanvas();
 }
 
-// 2. Funzione per Disegnare e Aggiornare il Grafico
 function updateTFIDFChart(data) {
     currentTfidfData = data;
     const placeholder = d3.select("#tfidf-chart em");
 
-    // 1. Normalizza i dati provenienti dal backend
+
     if (data && !Array.isArray(data) && typeof data === 'object') {
         data = Object.entries(data).map(([word, score]) => ({ word, score }));
     } else if (data && Array.isArray(data) && Array.isArray(data[0])) {
         data = data.map(d => ({ word: d[0], score: d[1] }));
     }
 
-    // Se non ci sono dati (es. selezione vuota o < 6)
+
     if (!data || data.length === 0) {
         tfSvg.selectAll(".tfidf-bar").remove();
         tfYAxisGroup.selectAll("*").remove();
@@ -2377,12 +2367,12 @@ function updateTFIDFChart(data) {
         return;
     }
 
-    // ABBIAMO I DATI! Nascondiamo il testo segnaposto definitivamente
+
     placeholder.style("display", "none");
     document.getElementById("tfidf-chart").style.minHeight = "250px";
     d3.select("#tfidf-chart svg").style("display", "block");
 
-    // Ricalcola la larghezza dinamicamente
+
     if (tfContainer.clientWidth > 0) {
         tfWidth = Math.max(tfContainer.clientWidth, 300) - 20;
         tfInnerWidth = Math.max(tfWidth - tfMargin.left - tfMargin.right, 10);
@@ -2396,15 +2386,14 @@ function updateTFIDFChart(data) {
 
     const getScore = d => d.score !== undefined ? d.score : (d.weight || 0);
 
-    // Aggiorna i domini delle scale
     tfYScale.domain(data.map(d => d.word));
     tfXScale.domain([0, d3.max(data, getScore) || 1]);
 
-    // Animazione assi
+  
     tfYAxisGroup.transition().duration(500).call(d3.axisLeft(tfYScale));
     tfXAxisGroup.transition().duration(500).call(d3.axisBottom(tfXScale).ticks(5));
 
-    // Gestione dell'etichetta dell'asse X (Cosa rappresenta)
+
     let xAxisLabel = tfSvg.selectAll(".tfidf-x-label").data([0]);
     xAxisLabel.enter()
         .append("text")
@@ -2412,23 +2401,23 @@ function updateTFIDFChart(data) {
         .merge(xAxisLabel)
         .transition().duration(500)
         .attr("x", tfInnerWidth)
-        .attr("y", tfInnerHeight + 35) // Posizionata sotto i numeri dell'asse X
+        .attr("y", tfInnerHeight + 35) 
         .attr("text-anchor", "end")
         .style("font-size", "11px")
         .style("font-weight", "600")
         .style("fill", "#475569")
         .text("TF-IDF Score");
         
-    // (Opzionale) Aggiusta il colore dei testi dell'asse X per coerenza
+
     tfXAxisGroup.selectAll("text").style("fill", "#64748b");
 
-    // Data Join per le barre
+
     const bars = tfSvg.selectAll(".tfidf-bar").data(data, d => d.word);
 
-    // Rimuovi le barre vecchie
+  
     bars.exit().transition().duration(300).attr("width", 0).remove();
 
-    // Aggiungi le nuove barre
+   
     const barsEnter = bars.enter()
         .append("rect")
         .attr("class", "tfidf-bar")
@@ -2438,14 +2427,13 @@ function updateTFIDFChart(data) {
         .attr("width", 0) 
         .attr("fill", "#3b82f6"); 
 
-    // Unisci e Anima
+ 
     barsEnter.merge(bars)
         .transition().duration(500)
         .attr("y", d => tfYScale(d.word))
         .attr("height", tfYScale.bandwidth())
         .attr("width", d => Math.max(0, tfXScale(getScore(d))));
 
-    // --- INTERAZIONE 2: DAL GRAFICO ALLA MAPPA (Evidenziazione Inversa) ---
     barsEnter.merge(bars).on("click", function(event, d) {
         const clickedWord = d.word.toLowerCase();
 
@@ -2494,13 +2482,12 @@ function updateTFIDFChart(data) {
 
 
 function applyFilters() {
-    // 1. Leggiamo i valori attuali dai controlli UI
+    
     const keyword = document.getElementById("filter-keyword").value.toLowerCase().trim();
     const sentiment = document.getElementById("filter-sentiment").value;
     const airline = document.getElementById("filter-airline").value;
     const maxLength = parseInt(document.getElementById("filter-length").value);
 
-    // Aggiorniamo il numeretto dello slider
     document.getElementById("word-count-display").innerText = maxLength === 40 ? "All" : maxLength;
 
     allNodesData.forEach(d => {
@@ -2525,49 +2512,27 @@ function applyFilters() {
     drawMapCanvas();
     return;
 
-    // 2. Passiamo al setaccio tutti i nodi sulla mappa
+
     nodeLayer.selectAll("circle.node")
         .classed("dimmed", function(d) {
-            // Regola 1: Keyword
-            // Se c'è una parola chiave e il testo del tweet NON la contiene -> Dimmed
+            
             if (keyword && !d.text.toLowerCase().includes(keyword)) return true;
 
-            // Regola 2: Sentiment
-            // Se non è su "All" e il sentiment non combacia -> Dimmed
+           
             if (sentiment !== "all" && d.sentiment !== sentiment) return true;
 
-            // Regola 3: Airline
-            // Se non è su "All" e la compagnia non combacia -> Dimmed
+          
             if (airline !== "all" && d.airline !== airline) return true;
 
-            // Regola 4: Word Count
-            // Contiamo gli spazi per stimare velocemente le parole. 
-            // Se il limite non è 40 (massimo) e il tweet sfora -> Dimmed
+            
             const wordCount = d.text.split(/\s+/).length;
             if (maxLength < 40 && wordCount > maxLength) return true;
 
-            // Se sopravvive a tutti i test, NON è dimmed (rimane visibile)
+            
             return false;
         });
 }
 
-// DIAGNOSTIC FILTERS - COMMENTED OUT (filter-controller no longer in HTML)
-/*
-// 3. Attacchiamo i Listener per far scattare i filtri in tempo reale
-document.getElementById("filter-keyword").addEventListener("input", applyFilters);
-document.getElementById("filter-sentiment").addEventListener("change", applyFilters);
-document.getElementById("filter-airline").addEventListener("change", applyFilters);
-document.getElementById("filter-length").addEventListener("input", applyFilters);
-
-// 4. Tasto Reset
-document.getElementById("btn-reset-filters").addEventListener("click", () => {
-    document.getElementById("filter-keyword").value = "";
-    document.getElementById("filter-sentiment").value = "all";
-    document.getElementById("filter-airline").value = "all";
-    document.getElementById("filter-length").value = 40;
-    applyFilters(); // Ricalcola per togliere il dimming a tutti
-});
-*/
 
 
 // BERTopic
@@ -2608,7 +2573,6 @@ function applyTopicSelection(selectedId) {
 
     activeTopicSelectionId = selectedId;
     
-    // CRUCIALE: Usiamo [currentTopicLens] invece di ".words"
     renderTopicBarchart(topicData[currentTopicLens]);
 
     if (interactionMode === "brush" && selectionMode === "point") {
@@ -2643,30 +2607,30 @@ function applyTopicSelection(selectedId) {
     drawMapCanvas();
 }
 d3.selectAll('input[name="topicLens"]').on("change", function() {
-    // 1. Aggiorna la variabile globale con il value del bottone cliccato
+    
     currentTopicLens = this.value; 
 
-    // 2. Se un topic è già selezionato nella mappa, aggiorna subito il grafico!
+
     if (activeTopicSelectionId !== null) {
         const topicData = allTopicsData.find(t => t.id === activeTopicSelectionId);
         if (topicData) {
-            selectedWordFilter = null; // Resetta la parola cliccata
+            selectedWordFilter = null; 
             
-            // Ridisegna il barchart con la nuova lente (es. words_raw o words_no_brands)
+        
             renderTopicBarchart(topicData[currentTopicLens]);
             
             if (interactionMode === "brush" && selectionMode === "point") {
                 applyTopicSelection(activeTopicSelectionId);
             } else {
-                // Ripristina la mappa
+                
                 highlightTweetsByWord(null);
             }
         }
     }
 });
 
-// 1. Carica i dati statici all'avvio dal file JSON locale
-fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
+
+fetch('bertopic_data.json') 
 .then(res => {
     if (!res.ok) {
         throw new Error(`Errore caricamento JSON: ${res.status}`);
@@ -2674,13 +2638,13 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
     return res.json();
 })
 .then(data => {
-    // Il processing dei dati rimane identico!
+   
     allTopicsData = data.map(topic => ({
         ...topic,
         label: topic.label || getTopicLabel(normalizeTopicId(topic.id))
     }));
     
-    // Popola la lista cliccabile
+    
     const selector = d3.select("#topic-selector");
     allTopicsData.forEach(topic => {
         selector.append("option")
@@ -2688,7 +2652,7 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
             .text(`${getTopicDisplayName(topic.id, topic.words_operational)} (${topic.count} tweets)`);
     });
 
-    // Ascolta il click
+   
     selector.on("change", function() {
         const selectedId = parseInt(this.value);
         const topicData = allTopicsData.find(t => t.id === selectedId);
@@ -2696,9 +2660,9 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
 
         d3.selectAll("circle.node")
         .transition()
-        .duration(400) // Animazione fluida
+        .duration(400) 
         .style("opacity", d => {
-            // Se il topic coincide, massima opacità. Altrimenti quasi trasparenti.
+           
             return d.topic_id === selectedId ? highlightedNodeOpacity : 0.05; 
         })
         .style("stroke", d => d.topic_id === selectedId ? selectedNodeStrokeColor : normalNodeStrokeColor)
@@ -2740,7 +2704,7 @@ fetch('bertopic_data.json') // <-- Punta direttamente al tuo file locale
 });
 
 
-// 2. Funzione helper per ottenere il nome formattato
+
 function getTopicDisplayName(topicId, wordsArray = []) {
     const manualName = manualTopicNames[topicId] || `Topic ${topicId}`;
     
@@ -2748,70 +2712,63 @@ function getTopicDisplayName(topicId, wordsArray = []) {
 }
 
 
-
-// 3. Disegna il grafico a barre per le parole
-
-
-// Variabile globale per tracciare la parola eventualmente selezionata nel barchart
 let selectedWordFilter = null;
 
 function renderTopicBarchart(words) {
     currentTopicWords = words;
 
     const container = d3.select("#topic-barchart");
-    container.html(""); // Pulisci il container
+    container.html(""); 
 
     if (!words || !words.length) {
         container.html('<em style="color: #94a3b8; font-size: 0.9rem;">Select a topic to see the keywords.</em>');
-        selectedWordFilter = null; // Resetta il filtro se cambia o scompare il topic
+        selectedWordFilter = null; 
         return;
     }
     
-    // Dimensioni regolate per ospitare formalmente l'asse X in basso
+    
     const width = Math.max(document.getElementById("topic-barchart").clientWidth, 200);
     const height = 160;
-    const margin = {top: 15, right: 20, bottom: 35, left: 75}; // Left aumentato per parole lunghe
+    const margin = {top: 15, right: 20, bottom: 35, left: 75}; 
 
     const svg = container.append("svg")
         .attr("width", width)
         .attr("height", height);
 
-    // Scale
+   
     const x = d3.scaleLinear()
-        .domain([0, d3.max(words, d => d.weight) * 1.05]) // 5% di spazio extra a destra per estetica
+        .domain([0, d3.max(words, d => d.weight) * 1.05]) 
         .range([margin.left, width - margin.right]);
 
     const y = d3.scaleBand()
         .domain(words.map(d => d.word))
         .range([margin.top, height - margin.bottom])
-        .padding(0.25); // Padding ottimale per le barre
+        .padding(0.25); 
 
-    // 1. Asse X (I pesi numerici c-TF-IDF)
+   
     svg.append("g")
         svg.append("g")
         .attr("transform", `translate(0, ${height - margin.bottom})`)
-        // .ticks(4) riduce i punti di campionamento per non affollare l'asse
-        // .tickFormat(d3.format(".3f")) forza la visualizzazione pulita a 3 decimali (es. 0.005)
+        
         .call(d3.axisBottom(x).ticks(4).tickFormat(d3.format(".3f"))) 
         .selectAll("text")
         .style("font-size", "11px")     
-        .style("fill", "#475569")        // Colore molto più scuro e leggibile
+        .style("fill", "#475569")        
         .style("font-weight", "500");
 
-    // Scuriamo anche la linea fisica dell'asse X e i suoi trattini
+   
     svg.selectAll(".x-axis path, .x-axis line").attr("stroke", "#94a3b8");
 
-    // Etichetta dell'asse X (opzionale, dà un tocco molto accademico)
+    
     svg.append("text")
         .attr("x", width - margin.right)
         .attr("y", height - 8)         
         .attr("text-anchor", "end")
         .style("font-size", "11px")      
         .style("font-weight", "600")    
-        .style("fill", "#334155")        // Grigio scuro ad alto contrasto
+        .style("fill", "#334155")        
         .text("c-TF-IDF score");
 
-    // 2. Asse Y (Le parole chiave del topic)
     svg.append("g")
         .attr("transform", `translate(${margin.left},0)`)
         .call(d3.axisLeft(y).tickSize(0)) 
@@ -2820,10 +2777,10 @@ function renderTopicBarchart(words) {
         .style("font-weight", "500")
         .style("fill", "#1e293b");      
 
-    // Rimuovi la linea verticale dell'asse Y per un look moderno ed elegante
+
     svg.select(".domain").remove();
 
-    // 3. Disegno delle Barre Orizzontali con Interazione
+
     const bars = svg.selectAll("rect")
         .data(words)
         .enter()
@@ -2832,28 +2789,28 @@ function renderTopicBarchart(words) {
         .attr("y", d => y(d.word))
         .attr("width", d => x(d.weight) - margin.left)
         .attr("height", y.bandwidth())
-        .attr("cursor", "pointer") // Indica visivamente che la barra è cliccabile
-        .attr("fill", d => (selectedWordFilter === d.word) ? "#1d4ed8" : "#3b82f6") // Colore diverso se già attiva
-        .attr("rx", 3); // Angoli leggermente smussati (sostituisce il non-standard border-radius)
+        .attr("cursor", "pointer") 
+        .attr("fill", d => (selectedWordFilter === d.word) ? "#1d4ed8" : "#3b82f6") 
+        .attr("rx", 3); 
 
-    // 4. Gestione Eventi di Interazione (Click)
+    
     bars.on("click", function(event, d) {
-        // Se ri-clicco sulla stessa parola, disattivo il filtro (Toggle)
+        
         if (selectedWordFilter === d.word) {
             selectedWordFilter = null;
         } else {
             selectedWordFilter = d.word;
         }
 
-        // Aggiorna visivamente i colori delle barre nel grafico
-        bars.attr("fill", b => (selectedWordFilter === b.word) ? "#1d4ed8" : "#94a3b8"); // Ingrigisci le altre, evidenzia la attiva
+     
+        bars.attr("fill", b => (selectedWordFilter === b.word) ? "#1d4ed8" : "#94a3b8"); 
         
         if (selectedWordFilter === null) {
-            // Se nessun filtro è attivo, rimetti il colore blu standard a tutte
+            
             bars.attr("fill", "#3b82f6");
         }
 
-        // Chiama la funzione per evidenziare i tweet sulla mappa/scatterplot
+        
         highlightTweetsByWord(selectedWordFilter);
     });
 }
@@ -2920,8 +2877,7 @@ function highlightTweetsByWord(word) {
     const dots = d3.selectAll("circle.node"); 
 
     if (!word) {
-        // RESET: Se l'utente clicca di nuovo sulla barra per disattivarla.
-        // Ripristiniamo la mappa mostrando solo i tweet del topic selezionato.
+        
         dots.transition().duration(300)
             .style("opacity", d => d.topic_id === activeTopicSelectionId ? highlightedNodeOpacity : 0.05)
             .style("stroke", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeColor : normalNodeStrokeColor)
@@ -2929,18 +2885,18 @@ function highlightTweetsByWord(word) {
         return;
     }
 
-    // FILTRO ATTIVO: L'utente ha cliccato su una parola
+   
     const lowerWord = word.toLowerCase();
     
     dots.transition().duration(300)
         .style("opacity", d => {
-            // 1. Se il tweet non fa parte del topic attivo, resta invisibile (0.05)
+           
             if (d.topic_id !== activeTopicSelectionId) return 0.05; 
             
-            // 2. Verifica se il testo del tweet contiene fisicamente la parola
+          
             const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
             
-            // 3. Se la contiene = Massima visibilità (1.0). Se non la contiene = Sbiadito (0.2)
+            
             return textContainsWord ? highlightedNodeOpacity : 0.2; 
         })
         .style("stroke", d => {
@@ -2973,9 +2929,9 @@ function updateTopicFromMapSelection(brushedNodes) {
     updateBertopicSelectionSummary(brushedNodes);
 }
 
-// Aggiunta del listener per il resize della finestra, in modo da rendere la dashboard responsive
+
 window.addEventListener("resize", () => {
-    // 1. Aggiorna le dimensioni della mappa principale
+    
     const rect = mapContainer.getBoundingClientRect();
     width = rect.width;
     height = rect.height;
@@ -2986,15 +2942,15 @@ window.addEventListener("resize", () => {
     if (allNodesData && allNodesData.length > 0) {
         const margin = mapMargin;
         
-        // Aggiorna il range delle scale
+    
         xScale.range([margin.left, width - margin.right]);
         yScale.range([height - margin.bottom, margin.top]);
 
-        // Aggiorna l'area del pennello (brush) per coprire il nuovo spazio
+       
         brush.extent([[0, 0], [width, height]]);
         brushLayer.call(brush);
 
-        // Elimina i collegamenti temporanei per evitare un offset visivo
+    
         linkLayer.selectAll("*").remove();
         perturbationTrajectories = [];
         perturbationVisualNodes = [];
@@ -3005,13 +2961,13 @@ window.addEventListener("resize", () => {
             node._fillOverride = null;
         });
 
-        // Ricalcola gli assi considerando lo zoom corrente
+
         const currentTransform = d3.zoomTransform(svg.node());
         keepAxesVisible(currentTransform);
         drawMapCanvas();
     }
 
-    // 2. Ridimensiona i grafici nel pannello dei dettagli
+  
     if (selectedNodesData && selectedNodesData.length > 0) {
         renderSelectionDistributionChart(selectedNodesData);
     }
