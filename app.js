@@ -73,19 +73,6 @@ const manualTopicNames = {
     "11": "Crew Praise"                       // crew, flt, great, professionals
 };
 
-// Define colors for each specific XAI perturbation type
-const perturbationColors = {
-    dict_synonym: "#2ca02c",
-    dict_antonym: "#d62728",
-    dict_remove: "#9333ea",
-    custom_replace: "#edef4b",
-    llm_paraphrase: "#1f77b4",
-    llm_opposite: "#ff7f0e",
-    noise: "#7f7f7f",
-    typo: "#06b6d4",
-    shuffle: "#ec4899",
-    leetspeak: "#84cc16"
-};
 
 const keywordHighlightColor = "#facc15";
 
@@ -220,7 +207,7 @@ const normalNodeStrokeColor = "rgba(15, 23, 42, 0.78)";
 const normalNodeStrokeWidth = 1.25;
 const selectedNodeStrokeColor = "#111827";
 const selectedNodeStrokeWidth = 3.0;
-const selectedWordMatchStrokeWidth = 13.0;
+const selectedWordMatchStrokeWidth = 18.0;
 const anchorNodeStrokeWidth = 9.0;
 const perturbationOutlineStrokeWidth = 8.0;
 const inactivePerturbationOpacity = 0.35;
@@ -265,6 +252,13 @@ function updateBertopicSelectionSummary(nodes) {
         renderTopicBarchart(null);
         const selector = document.getElementById("topic-selector");
         if (selector) selector.selectedIndex = -1;
+        return;
+    }
+
+    if (selectionMode === "cluster" || selectionMode === "point") {
+        const selector = document.getElementById("topic-selector");
+        if (selector) selector.selectedIndex = -1;
+        renderTopicBarchart(null); 
         return;
     }
 
@@ -1045,7 +1039,7 @@ function renderPerturbationCarousel() {
         chip.textContent = `${perturbationLabels[result.type] || result.type}`;
         
         if (result.key === activePerturbationKey) {
-            const color = perturbationColors[result.type] || "#334155";
+            const color =  "#334155";
             chip.style.borderColor = color;
             chip.style.color = color;
             chip.style.fontWeight = "600";
@@ -2129,7 +2123,7 @@ document.getElementById("btn-perturb").addEventListener("click", () => {
     const node = selectedNodesData[0];
     const perturbType = document.getElementById("perturbation-select").value;
     const replacement = document.getElementById("custom-word-input").value.trim();
-    const arrowColor = perturbationColors[perturbType];
+    const arrowColor = '#000000';
 
     document.getElementById("results-area").style.display = "block";
     document.getElementById("new-text").innerHTML = "<span>Loading perturbation from backend...</span>";
@@ -2612,7 +2606,7 @@ function clearTopicSelection() {
     applySelectionVisualState();
     drawMapCanvas();
 }
-
+// BERTopic
 function applyTopicSelection(selectedId) {
     selectedWordFilter = null;
     const topicData = allTopicsData.find(t => t.id === selectedId);
@@ -2622,16 +2616,17 @@ function applyTopicSelection(selectedId) {
     
     renderTopicBarchart(topicData[currentTopicLens]);
 
-    if (interactionMode === "brush" && selectionMode === "point") {
+    const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
+    const isClusterSelection = selectionMode === "cluster"; 
+
+    if (isBrushPointSelection) {
         clearBertopicMapHighlight();
         applySelectionVisualState();
         allNodesData.forEach(d => {
             const matchesTopic = d.topic_id === selectedId;
             const isInsideBrushSelection = selectedNodeIds.has(d.id);
 
-            if (!matchesTopic) {
-                return;
-            }
+            if (!matchesTopic) return;
 
             d._bertopicHighlight = true;
             d._brushSelectedBertopicHighlight = isInsideBrushSelection;
@@ -2647,10 +2642,36 @@ function applyTopicSelection(selectedId) {
 
     allNodesData.forEach(d => {
         const matchesTopic = d.topic_id === selectedId;
-        d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
-        d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
-        d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+        const isInsideSelection = selectedNodeIds.has(d.id);
+
+        if (isClusterSelection) {
+            if (isInsideSelection) {
+                // Nel cluster e appartenente al topic 
+                if (matchesTopic) {
+                    d._opacity = highlightedNodeOpacity;
+                    d._stroke = selectedNodeStrokeColor; // bordo nero
+                    d._strokeWidth = selectedNodeStrokeWidth;
+                } 
+                // Nel cluster ma non del topic (mantiene opacità)
+                else {
+                    d._opacity = highlightedNodeOpacity;
+                    d._stroke = normalNodeStrokeColor;
+                    d._strokeWidth = normalNodeStrokeWidth;
+                }
+            } else {
+                // fuori dal cluster
+                d._opacity = 0.05;
+                d._stroke = normalNodeStrokeColor;
+                d._strokeWidth = normalNodeStrokeWidth;
+            }
+        } else {
+            // Standard point-based
+            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+            d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
+            d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+        }
     });
+   
     drawMapCanvas();
 }
 d3.selectAll('input[name="topicLens"]').on("change", function() {
@@ -2813,7 +2834,7 @@ function renderTopicBarchart(words) {
         .attr("text-anchor", "end")
         .style("font-size", "11px")      
         .style("font-weight", "600")    
-        .style("fill", "#334155")        
+        .style("fill", "#000000")        
         .text("c-TF-IDF score");
 
     svg.append("g")
@@ -2861,63 +2882,127 @@ function renderTopicBarchart(words) {
         highlightTweetsByWord(selectedWordFilter);
     });
 }
-
 function highlightTweetsByWord(word) {
-    if (!word) {
-        if (interactionMode === "brush" && selectionMode === "point") {
-            clearBertopicMapHighlight();
-            applySelectionVisualState();
-            drawMapCanvas();
-            return;
-        }
+    const isClusterSelection = selectionMode === "cluster";
+    const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
 
+    if (isBrushPointSelection) {
+        clearBertopicMapHighlight();
+        applySelectionVisualState(); 
+    }
+
+    // Nessuna keyword
+    if (!word) {
         allNodesData.forEach(d => {
             const matchesTopic = d.topic_id === activeTopicSelectionId;
-            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
-            d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
-            d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+            const isInsideSelection = selectedNodeIds.has(d.id);
+
+            d._bertopicHighlight = false;
+            d._brushSelectedBertopicHighlight = false;
+
+            if (isBrushPointSelection) {
+                if (isInsideSelection && matchesTopic) {
+                    d._bertopicHighlight = true;
+                    d._brushSelectedBertopicHighlight = true;
+                    d._opacity = highlightedNodeOpacity;
+                    d._stroke = getBertopicStrokeColor(d);
+                    d._strokeWidth = brushSelectedBertopicNodeStrokeWidth;
+                } else if (!isInsideSelection) {
+                    d._opacity = 0.05;
+                    d._stroke = normalNodeStrokeColor;
+                    d._strokeWidth = normalNodeStrokeWidth;
+                }
+            } else if (isClusterSelection) {
+                if (isInsideSelection) {
+                    if (matchesTopic) {
+                        d._bertopicHighlight = true; 
+                        d._opacity = highlightedNodeOpacity;
+                        d._stroke = selectedNodeStrokeColor;
+                        d._strokeWidth = selectedNodeStrokeWidth;
+                    } else {
+                        d._opacity = highlightedNodeOpacity;
+                        d._stroke = normalNodeStrokeColor;
+                        d._strokeWidth = normalNodeStrokeWidth;
+                    }
+                } else {
+                    d._opacity = 0.05;
+                    d._stroke = normalNodeStrokeColor;
+                    d._strokeWidth = normalNodeStrokeWidth;
+                }
+            } else { // Click Point-based
+                if (matchesTopic) {
+                    d._bertopicHighlight = true; 
+                    d._opacity = highlightedNodeOpacity;
+                    d._stroke = selectedNodeStrokeColor;
+                    d._strokeWidth = selectedNodeStrokeWidth;
+                } else {
+                    d._opacity = 0.05;
+                    d._stroke = normalNodeStrokeColor;
+                    d._strokeWidth = normalNodeStrokeWidth;
+                }
+            }
         });
         drawMapCanvas();
         return;
     }
 
+    // Keyword
     const lowerWordForCanvas = word.toLowerCase();
-    const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
-    if (isBrushPointSelection) {
-        clearBertopicMapHighlight();
-        applySelectionVisualState();
-    }
 
     allNodesData.forEach(d => {
         const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWordForCanvas);
-        const isSelectedByBrush = isBrushPointSelection && selectedNodeIds.has(d.id);
+        const isInsideSelection = selectedNodeIds.has(d.id);
+        const matchesTopic = d.topic_id === activeTopicSelectionId;
+
+        d._bertopicHighlight = false;
+        d._brushSelectedBertopicHighlight = false;
 
         if (isBrushPointSelection) {
-            if (isSelectedByBrush) {
-                d._opacity = highlightedNodeOpacity;
-                d._stroke = textContainsWord ? getBertopicStrokeColor(d) : normalNodeStrokeColor;
-                d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : normalNodeStrokeWidth;
-                d._brushSelectedBertopicHighlight = textContainsWord;
-            } else if (textContainsWord) {
+            if (isInsideSelection && matchesTopic) {
                 d._bertopicHighlight = true;
-                d._opacity = d._opacity ?? normalNodeOpacity;
+                d._brushSelectedBertopicHighlight = true;
+                d._opacity = highlightedNodeOpacity;
                 d._stroke = getBertopicStrokeColor(d);
-                d._strokeWidth = bertopicNodeStrokeWidth;
+                d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : brushSelectedBertopicNodeStrokeWidth;
+            } else if (!isInsideSelection) {
+                d._opacity = 0.05;
+                d._stroke = normalNodeStrokeColor;
+                d._strokeWidth = normalNodeStrokeWidth;
             }
-            return;
+        } 
+        else if (isClusterSelection) {
+            if (isInsideSelection) {
+                if (matchesTopic) {
+                    d._bertopicHighlight = true; 
+                    d._opacity = highlightedNodeOpacity;
+                    d._stroke = selectedNodeStrokeColor; 
+                    d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : selectedNodeStrokeWidth;
+                } else {
+                    // Nel cluster ma non del topic
+                    d._opacity = highlightedNodeOpacity;
+                    d._stroke = normalNodeStrokeColor;
+                    d._strokeWidth = normalNodeStrokeWidth;
+                }
+            } else {
+                d._opacity = 0.05;
+                d._stroke = normalNodeStrokeColor;
+                d._strokeWidth = normalNodeStrokeWidth;
+            }
+        } 
+        else { // Click Point-based
+            if (matchesTopic) {
+                d._bertopicHighlight = true; 
+                d._opacity = highlightedNodeOpacity;
+                d._stroke = selectedNodeStrokeColor;
+                d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : selectedNodeStrokeWidth;
+            } else {
+                d._opacity = 0.05;
+                d._stroke = normalNodeStrokeColor;
+                d._strokeWidth = normalNodeStrokeWidth;
+            }
         }
-
-        if (d.topic_id !== activeTopicSelectionId) {
-            d._opacity = 0.05;
-            d._stroke = normalNodeStrokeColor;
-            d._strokeWidth = normalNodeStrokeWidth;
-            return;
-        }
-
-        d._opacity = textContainsWord ? highlightedNodeOpacity : 0.2;
-        d._stroke = textContainsWord ? selectedNodeStrokeColor : normalNodeStrokeColor;
-        d._strokeWidth = textContainsWord ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
     });
+    
     drawMapCanvas();
     return;
 
