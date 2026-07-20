@@ -225,7 +225,7 @@ const anchorNodeStrokeWidth = 9.0;
 const perturbationOutlineStrokeWidth = 8.0;
 const inactivePerturbationOpacity = 0.35;
 const keywordNodeStrokeWidth = 2.6;
-const brushSelectedKeywordNodeStrokeWidth = 8.0;
+const brushSelectedKeywordNodeStrokeWidth = 10.0;
 const bertopicNodeStrokeWidth = 3.8;
 const brushSelectedBertopicNodeStrokeWidth = 8.0;
 const brushPointSelectedNodeStrokeWidth = 4.4;
@@ -2473,27 +2473,51 @@ function updateTFIDFChart(data) {
             allNodesData.forEach(nodeData => {
                 const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
                 const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
-                const isInsideBrushSelection = isBrushPointSelection && selectedNodeIds.has(nodeData.id);
-                nodeData._keywordHighlight = hasWord;
-                nodeData._brushSelectedKeywordHighlight = hasWord && isInsideBrushSelection;
+                const isClusterSelection = selectionMode === "cluster";
+                // verifica se il tweet fa parte della selezione attiva
+                const isInsideSelection = selectedNodeIds.has(nodeData.id);
+                
+                // Controlla se la parola chiave cade in un tweet attualmente in focus (brush point o cluster intero)
+                const isKeywordInTargetArea = hasWord && isInsideSelection && (isBrushPointSelection || isClusterSelection);
 
-                if (hasWord && isInsideBrushSelection) {
-                    nodeData._opacity = highlightedNodeOpacity;
-                    nodeData._stroke = getBrushSelectedKeywordStrokeColor(nodeData);
-                    nodeData._strokeWidth = brushSelectedKeywordNodeStrokeWidth;
-                } else if (hasWord) {
-                    nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : highlightedNodeOpacity;
-                    nodeData._stroke = keywordHighlightColor;
-                    nodeData._strokeWidth = getKeywordNodeStrokeWidth();
-                } else if (isInsideBrushSelection) {
-                    nodeData._keywordHighlight = false;
-                    nodeData._opacity = highlightedNodeOpacity;
-                    nodeData._stroke = selectedNodeStrokeColor;
-                    nodeData._strokeWidth = getSelectedNodeStrokeWidth();
+                nodeData._keywordHighlight = hasWord;
+                nodeData._brushSelectedKeywordHighlight = isKeywordInTargetArea;
+                
+                // TF-IDF:
+                if (isClusterSelection) {
+                    // GESTIONE CLUSTER-BASED 
+                    if (hasWord && isInsideSelection) {
+                        // Tweet fa parte del cluster e contiene la keyword 
+                        nodeData._opacity = highlightedNodeOpacity; 
+                        nodeData._strokeWidth = brushSelectedKeywordNodeStrokeWidth;
+                    } else if (isInsideSelection) {
+                        // tweet fa prte del cluster ma non contiene la keyword 
+                        nodeData._keywordHighlight = false;
+                        nodeData._opacity = highlightedNodeOpacity;
+                        nodeData._strokeWidth = getSelectedNodeStrokeWidth();
+                    } else {
+                        // Tweet fuori dal cluster 
+                        nodeData._keywordHighlight = false; 
+                        nodeData._opacity = 0.05;
+                        nodeData._strokeWidth = normalNodeStrokeWidth;
+                    }
                 } else {
-                    nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : 0.05;
-                    nodeData._stroke = normalNodeStrokeColor;
-                    nodeData._strokeWidth = normalNodeStrokeWidth;
+                    // GESTIONE POINT-BASED (Click o Brush)
+                    if (hasWord && isInsideSelection && isBrushPointSelection) {
+                        nodeData._opacity = highlightedNodeOpacity;
+                        
+                        nodeData._strokeWidth = brushSelectedKeywordNodeStrokeWidth;
+                    } else if (hasWord) {
+                        nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : highlightedNodeOpacity;
+                        nodeData._strokeWidth = getKeywordNodeStrokeWidth();
+                    } else if (isInsideSelection && isBrushPointSelection) {
+                        nodeData._keywordHighlight = false;
+                        nodeData._opacity = highlightedNodeOpacity;
+                        nodeData._strokeWidth = getSelectedNodeStrokeWidth();
+                    } else {
+                        nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : 0.05;
+                        nodeData._strokeWidth = normalNodeStrokeWidth;
+                    }
                 }
             });
             drawMapCanvas();
