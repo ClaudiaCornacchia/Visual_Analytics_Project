@@ -1,5 +1,6 @@
+// Set up connection to Kaggle/Ngrok backend
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -21,6 +22,7 @@ function postJson(path, payload) {
     }).then(parseApiResponse);
 }
 
+// Define color palettes for standard visualization 
 const sentimentColors = {
     positive: "#91cf60",
     negative: "#fc8d59",
@@ -53,7 +55,7 @@ const airlinePalette = [
 
 const outlierTopicColor = "#d3d3d3a6";
 
-// Dizionario per i nomi manuali dei Topic 
+// Map manual labels to algorithmically generated topic IDs
 const manualTopicNames = {
     "-1": "Outliers",
 
@@ -71,6 +73,7 @@ const manualTopicNames = {
     "11": "Crew Praise"                       // crew, flt, great, professionals
 };
 
+// Define colors for each specific XAI perturbation type
 const perturbationColors = {
     dict_synonym: "#2ca02c",
     dict_antonym: "#d62728",
@@ -86,11 +89,14 @@ const perturbationColors = {
 
 const keywordHighlightColor = "#facc15";
 
+// Rendering setup
+
 const mapContainer = document.getElementById("map-panel");
 const rect = mapContainer.getBoundingClientRect();
 let width = rect.width;
 let height = rect.height;
 
+// Canvas is used for fast rendering of the 10k nodes. SVG is used for axes, brushes, and arrows
 const svg = d3.select("#map")
     .attr("width", width)
     .attr("height", height);
@@ -99,14 +105,12 @@ const mapCanvas = document.getElementById("map-canvas");
 const mapContext = mapCanvas.getContext("2d");
 
 const zoomGroup = svg.append("g").attr("id", "zoom-group");
-const linkLayer = zoomGroup.append("g").attr("id", "link-layer");
-const nodeLayer = zoomGroup.append("g").attr("id", "node-layer");
-const brushLayer = svg.append("g").attr("class", "brush").style("display", "none");
+const linkLayer = zoomGroup.append("g").attr("id", "link-layer"); // for perturbation trajectory arrows
+const nodeLayer = zoomGroup.append("g").attr("id", "node-layer"); // for standard nodes
+const brushLayer = svg.append("g").attr("class", "brush").style("display", "none"); // for user selection rectangle
 
 const xAxisGroup = svg.append("g").attr("class", "x-axis");
 const yAxisGroup = svg.append("g").attr("class", "y-axis");
-
-
 
 svg.append("defs").append("marker")
     .attr("id", "arrowhead")
@@ -121,6 +125,7 @@ svg.append("defs").append("marker")
     .attr("d", "M0,-5L10,0L0,5")
     .attr("fill", "#555");
 
+// UI references
 const btnPerturb = document.getElementById("btn-perturb");
 const btnClear = document.getElementById("btn-clear");
 const btnResetZoom = document.getElementById("btn-reset-zoom");
@@ -179,19 +184,22 @@ btnClearSelection.style.minWidth = "118px";
 btnClearSelection.style.fontWeight = "600";
 mapToolbar.insertBefore(btnClearSelection, btnZoomSelection);
 
+// Global state
 let xScale;
 let yScale;
-let allNodesData = [];
-let selectedNodesData = [];
+let allNodesData = []; // stores the entire dataset
+let selectedNodesData = []; // stores currently selected tweets 
 let selectedNodeIds = new Set();
 let brushClusterSourceNodes = [];
 let canvasNodeRadius = 6;
 let airlineColorScale = d3.scaleOrdinal().range(airlinePalette);
 let topicColorScale = d3.scaleOrdinal().range(topicPalette);
-let currentColorEncoding = "sentiment";
-let interactionMode = "click";
-let selectionMode = "point";
-let mapNavigationMode = false;
+
+// Interaction flags: control how the user is exploring the map 
+let currentColorEncoding = "sentiment"; // current color map (sentiment, airline, topic)
+let interactionMode = "click"; // can be 'click' (mouse) or 'brush' (rectangle)
+let selectionMode = "point"; // 'point' (single tweet) or 'cluster' (group)
+let mapNavigationMode = false; // True if user is panning/zooming
 let originalClickedNode = null;
 
 const wordBasedPerturbations = ["dict_synonym", "dict_antonym", "dict_remove", "custom_replace"];
@@ -280,6 +288,7 @@ function updateBertopicSelectionSummary(nodes) {
     renderTopicBarchart(topicData[currentTopicLens]);
 }
 
+// Identifies the most frequent topic in a user's brushed area
 function getDominantTopicId(nodes) {
     const topicCounts = new Map();
 
@@ -344,6 +353,7 @@ function getDominantClusterKey(nodes) {
     return dominantKey;
 }
 
+// Resolves click selection, if 'cluster' mode is active, selects all nodes sharing the same key
 function resolveClickSelectionMode(nodes, originalNode = null) {
     const uniqueNodes = getUniqueNodes(nodes);
     if (selectionMode !== "cluster" || !uniqueNodes.length) {
@@ -359,6 +369,7 @@ function resolveClickSelectionMode(nodes, originalNode = null) {
     return allNodesData.filter(node => getClusterKey(node) === selectedKey);
 }
 
+// Resolves brush selection, finds the dominant cluster in the drawn rectangle
 function resolveBrushSelectionMode(nodes) {
     const uniqueNodes = Array.from(new Map(nodes.map(node => [node.id, node])).values());
     if (selectionMode !== "cluster" || !uniqueNodes.length) {
@@ -421,6 +432,7 @@ function setClusterEncoding(encoding, options = {}) {
     updateSelectionClusterIndicator();
 }
 
+// updates UI buttons and visibility depending on selected modes
 function syncModeButtons() {
     interactionClickBtn.classList.toggle("active", interactionMode === "click");
     interactionBrushBtn.classList.toggle("active", interactionMode === "brush");
@@ -537,6 +549,8 @@ function getCurrentNodePosition(node) {
     };
 }
 
+// Visual encodings 
+// returns the correct color for a point based on the active encoding toggle
 function getNodeFillColor(node) {
     if (node._fillOverride) return node._fillOverride;
     if (currentColorEncoding === "airline") {
@@ -710,6 +724,7 @@ function drawCanvasNode(node, transform, forceHighlight = false) {
     }
 }
 
+// Core rendering loop, clears canvas and redraws all nodes based on current zoom transform
 function drawMapCanvas() {
     if (!xScale || !yScale) return;
 
@@ -725,6 +740,7 @@ function drawMapCanvas() {
         drawCanvasNode(node, transform);
     });
 
+    // Sort highlighted nodes so they are drawn on top
     highlightedNodes
         .sort((a, b) => {
             const getHighlightWeight = node =>
@@ -758,6 +774,9 @@ function getInsetLineEndpoints(startX, startY, endX, endY, inset) {
     };
 }
 
+// Perturbation handling 
+
+// Calculates math for trajectory arrows, accounting for zoom scale to keep arrows proportional
 function updatePerturbationTrajectories() {
     const transform = d3.zoomTransform(svg.node());
     const zoomK = Math.max(transform.k || 1, 0.001);
@@ -1080,6 +1099,7 @@ function removePerturbationVisualsByKey(key) {
     perturbationVisualNodes = perturbationVisualNodes.filter(node => node._perturbationResult?.key !== key);
 }
 
+// stores results and populates the perturbation carousel at the bottom
 async function parseApiResponse(response) {
     const rawText = await response.text();
     let parsed;
@@ -1598,7 +1618,7 @@ function selectNodes(nodes, options = {}) {
     }
     updatePerturbationButtonState(); 
 
-    // Gestione TF-IDF
+    // TF-IDF
     const loadingText = document.getElementById("tfidf-loading");
     if (selectedNodesData.length > 5) { 
         loadingText.style.display = "block";
@@ -1662,6 +1682,7 @@ function setBrushMode(active) {
         .style("pointer-events", active ? "all" : "none");
 }
 
+// switch between TF-IDF and BERTopic
 let activeSelectionInspector = "tfidf";
 
 function setSelectionInspector(view) {
@@ -1745,6 +1766,7 @@ function setSelectionMode(mode) {
     updatePanelVisibility();
 }
 
+// Initialize D3 behaviors
 const zoom = d3.zoom()
     .scaleExtent([0.5, 20])
     .filter(function (event) {
@@ -1844,6 +1866,7 @@ svg.on("click.resetDim", function (event) {
 document.addEventListener("mouseup", () => document.body.classList.remove("panning"));
 document.addEventListener("mouseleave", () => document.body.classList.remove("panning"));
 
+// asynchronously load the dataset from CSV [
 d3.csv("base_map.csv", function (d) {
     const topicId = normalizeTopicId(d.topic_id);
     return {
