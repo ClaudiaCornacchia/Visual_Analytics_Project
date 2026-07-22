@@ -30,7 +30,7 @@ const sentimentColors = {
 };
 
 const topicPalette = [
-    "#a6cee3",
+    "#b15928",
     "#1f78b4",
     "#b2df8a",
     "#33a02c",
@@ -38,10 +38,10 @@ const topicPalette = [
     "#e31a1c",
     "#fdbf6f",
     "#ff7f00",
-    "#cab2d6",
-    "#6a3d9a",
+    "#be96d2",
+    "#5b3485",
     "#ffff99",
-    "#b15928"
+    "#00a6ff"
 ];
 
 const airlinePalette = [
