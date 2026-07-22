@@ -1,6 +1,6 @@
 // Set up connection to Kaggle/Ngrok backend
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -414,6 +414,7 @@ function setClusterEncoding(encoding, options = {}) {
         colorEncodingSelect.value = encoding;
     }
     syncModeButtons();
+    applySelectionVisualState();
     updateNodeColors();
     renderMapLegends(selectedNodesData);
 
@@ -661,24 +662,39 @@ function getBertopicStrokeColor(node) {
 
 function applySelectionVisualState() {
     const hasSelection = selectedNodeIds.size > 0;
+    // click + point-based
+    const isSinglePointClick = interactionMode === "click" && selectionMode === "point";
+
     allNodesData.forEach(node => {
-            node._selected = selectedNodeIds.has(node.id);
-            node._selectionAnchor = interactionMode === "click"
-                && selectionMode === "cluster"
-                && originalClickedNode
-                && node.id === originalClickedNode.id;
-            node._selectionMuted = hasSelection && !node._selected;
-            if (node._selected) {
-                node._opacity = highlightedNodeOpacity;
-                node._stroke = node._selectionAnchor ? getDynamicAnchorStrokeColor(node) : selectedNodeStrokeColor;
+        node._selected = selectedNodeIds.has(node.id);
+        node._selectionAnchor = interactionMode === "click"
+            && selectionMode === "cluster"
+            && originalClickedNode
+            && node.id === originalClickedNode.id;
+        node._selectionMuted = hasSelection && !node._selected;
+
+        if (node._selected) {
+            // TWEET SELEZIONATI
+            node._fillOverride = null;
+            node._opacity = highlightedNodeOpacity;
+            node._stroke = node._selectionAnchor ? getDynamicAnchorStrokeColor(node) : selectedNodeStrokeColor;
             node._strokeWidth = node._perturbationOutline
                 ? perturbationOutlineStrokeWidth
                 : (node._selectionAnchor ? anchorNodeStrokeWidth : getSelectedNodeStrokeWidth());
         } else if (node._selectionMuted) {
-            node._opacity = 0.14;
+            // TWEET NON SELEZIONATI
+            if (isSinglePointClick) {
+                node._fillOverride = null;
+                node._opacity = 0.14;
+            } else {
+                node._fillOverride = "#d9d9d9";
+                node._opacity = 0.25;
+            }
             node._stroke = normalNodeStrokeColor;
             node._strokeWidth = normalNodeStrokeWidth;
         } else if (!node._keywordHighlight && !node._dimmed) {
+            // Nessuna selezione attiva
+            node._fillOverride = null;
             node._opacity = normalNodeOpacity;
             node._stroke = normalNodeStrokeColor;
             node._strokeWidth = normalNodeStrokeWidth;
@@ -727,7 +743,7 @@ function drawMapCanvas() {
     const highlightedNodes = [];
 
     allNodesData.forEach(node => {
-        if (node._selected || node._keywordHighlight || node._bertopicHighlight) {
+        if (node._selected || node._keywordHighlight || node._bertopicHighlight || node._keywordMatch) {
             highlightedNodes.push(node);
             return;
         }
@@ -737,14 +753,16 @@ function drawMapCanvas() {
     // Sort highlighted nodes so they are drawn on top
     highlightedNodes
         .sort((a, b) => {
-            const getHighlightWeight = node =>
-                Number(Boolean(node._bertopicHighlight))
-                + Number(Boolean(node._brushSelectedKeywordHighlight)) * 2
-                + Number(Boolean(node._brushSelectedBertopicHighlight)) * 3
-                + Number(Boolean(node._selectionAnchor)) * 4;
+            const getHighlightWeight = item =>
+                Number(Boolean(item._bertopicHighlight))
+                + Number(Boolean(item._brushSelectedKeywordHighlight)) * 2
+                + Number(Boolean(item._brushSelectedBertopicHighlight)) * 3
+                + Number(Boolean(item._selectionAnchor)) * 4
+                + Number(Boolean(item._keywordMatch)) * 5; // <-- Priorità massima: disegnato per ultimo = IN PRIMO PIANO
             return getHighlightWeight(a) - getHighlightWeight(b);
         })
         .forEach(node => drawCanvasNode(node, transform, true));
+
     perturbationVisualNodes.forEach(node => drawCanvasNode(node, transform, true));
     mapContext.globalAlpha = 1;
 }
@@ -2349,11 +2367,7 @@ function clearKeywordHighlight() {
     allNodesData.forEach(node => {
         node._keywordHighlight = false;
         node._brushSelectedKeywordHighlight = false;
-        if (!node._selected && !node._selectionMuted && !node._dimmed) {
-            node._opacity = normalNodeOpacity;
-            node._stroke = normalNodeStrokeColor;
-            node._strokeWidth = normalNodeStrokeWidth;
-        }
+        node._keywordMatch = false; // per mettere in primo piano
     });
     applySelectionVisualState();
     drawMapCanvas();
@@ -2458,6 +2472,8 @@ function updateTFIDFChart(data) {
             clearKeywordHighlight();
         } else {
             activeKeyword = clickedWord;
+            
+            // Colora la barra selezionata nel grafico a barre TF-IDF
             d3.selectAll(".tfidf-bar")
                 .classed("active", b => b.word.toLowerCase() === activeKeyword)
                 .style("fill", b => b.word.toLowerCase() === activeKeyword ? keywordHighlightColor : null)
@@ -2466,52 +2482,30 @@ function updateTFIDFChart(data) {
 
             allNodesData.forEach(nodeData => {
                 const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
-                const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
-                const isClusterSelection = selectionMode === "cluster";
-                // verifica se il tweet fa parte della selezione attiva
                 const isInsideSelection = selectedNodeIds.has(nodeData.id);
                 
-                // Controlla se la parola chiave cade in un tweet attualmente in focus (brush point o cluster intero)
-                const isKeywordInTargetArea = hasWord && isInsideSelection && (isBrushPointSelection || isClusterSelection);
-
-                nodeData._keywordHighlight = hasWord;
-                nodeData._brushSelectedKeywordHighlight = isKeywordInTargetArea;
+                nodeData._keywordHighlight = false;
+                nodeData._brushSelectedKeywordHighlight = false;
                 
-                // TF-IDF:
-                if (isClusterSelection) {
-                    // GESTIONE CLUSTER-BASED 
-                    if (hasWord && isInsideSelection) {
-                        // Tweet fa parte del cluster e contiene la keyword 
-                        nodeData._opacity = highlightedNodeOpacity; 
-                        nodeData._strokeWidth = brushSelectedKeywordNodeStrokeWidth;
-                    } else if (isInsideSelection) {
-                        // tweet fa prte del cluster ma non contiene la keyword 
-                        nodeData._keywordHighlight = false;
-                        nodeData._opacity = highlightedNodeOpacity;
+                if (isInsideSelection) {
+                    // TWEET NEL CLUSTER
+                    nodeData._fillOverride = null;
+
+                    if (hasWord) {
+                        // Contiene la parola
+                        nodeData._opacity = 1; 
                         nodeData._strokeWidth = getSelectedNodeStrokeWidth();
+                        nodeData._keywordMatch = true;
                     } else {
-                        // Tweet fuori dal cluster 
-                        nodeData._keywordHighlight = false; 
-                        nodeData._opacity = 0.05;
-                        nodeData._strokeWidth = normalNodeStrokeWidth;
+                        // Non contiene la parola
+                        nodeData._opacity = 0.15; 
+                        nodeData._strokeWidth = getSelectedNodeStrokeWidth();
+                        nodeData._keywordMatch = false;
+
                     }
                 } else {
-                    // GESTIONE POINT-BASED (Click o Brush)
-                    if (hasWord && isInsideSelection && isBrushPointSelection) {
-                        nodeData._opacity = highlightedNodeOpacity;
-                        
-                        nodeData._strokeWidth = brushSelectedKeywordNodeStrokeWidth;
-                    } else if (hasWord) {
-                        nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : highlightedNodeOpacity;
-                        nodeData._strokeWidth = getKeywordNodeStrokeWidth();
-                    } else if (isInsideSelection && isBrushPointSelection) {
-                        nodeData._keywordHighlight = false;
-                        nodeData._opacity = highlightedNodeOpacity;
-                        nodeData._strokeWidth = getSelectedNodeStrokeWidth();
-                    } else {
-                        nodeData._opacity = isBrushPointSelection ? (nodeData._opacity ?? normalNodeOpacity) : 0.05;
-                        nodeData._strokeWidth = normalNodeStrokeWidth;
-                    }
+                    // TWEET FUORI DAL CLUSTER (Non selezionati)
+                    nodeData._keywordMatch = false;
                 }
             });
             drawMapCanvas();
@@ -2591,18 +2585,13 @@ function clearBertopicMapHighlight() {
 
 function clearTopicSelection() {
     activeTopicSelectionId = null;
+    selectedWordFilter = null;
 
     const selector = document.getElementById("topic-selector");
     if (selector) {
         selector.selectedIndex = -1;
     }
-
     renderTopicBarchart(null);
-    if (interactionMode === "brush" && selectionMode === "point") {
-        clearBertopicMapHighlight();
-    } else {
-        resetNodeVisuals();
-    }
     applySelectionVisualState();
     drawMapCanvas();
 }
@@ -2613,67 +2602,55 @@ function applyTopicSelection(selectedId) {
     if (!topicData) return;
 
     activeTopicSelectionId = selectedId;
-    
     renderTopicBarchart(topicData[currentTopicLens]);
 
-    const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
-    const isClusterSelection = selectionMode === "cluster"; 
-
-    if (isBrushPointSelection) {
-        clearBertopicMapHighlight();
-        applySelectionVisualState();
-        allNodesData.forEach(d => {
-            const matchesTopic = d.topic_id === selectedId;
-            const isInsideBrushSelection = selectedNodeIds.has(d.id);
-
-            if (!matchesTopic) return;
-
-            d._bertopicHighlight = true;
-            d._brushSelectedBertopicHighlight = isInsideBrushSelection;
-            d._stroke = getBertopicStrokeColor(d);
-            d._strokeWidth = isInsideBrushSelection ? brushSelectedBertopicNodeStrokeWidth : bertopicNodeStrokeWidth;
-            if (isInsideBrushSelection) {
-                d._opacity = highlightedNodeOpacity;
-            }
-        });
-        drawMapCanvas();
-        return;
-    }
+    const isSinglePointClick = interactionMode === "click" && selectionMode === "point";
 
     allNodesData.forEach(d => {
         const matchesTopic = d.topic_id === selectedId;
         const isInsideSelection = selectedNodeIds.has(d.id);
 
-        if (isClusterSelection) {
+        d._bertopicHighlight = false;
+        d._brushSelectedBertopicHighlight = false;
+        d._keywordMatch = false; // Reset primo piano
+
+        if (isSinglePointClick) {
+            // Click Point-based: comportamento nativo isolato
+            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+            d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
+            d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
+            d._fillOverride = null;
+        } else {
+            // Brush (Point/Cluster) e Click (Cluster):
             if (isInsideSelection) {
-                // Nel cluster e appartenente al topic 
                 if (matchesTopic) {
-                    d._opacity = highlightedNodeOpacity;
-                    d._stroke = selectedNodeStrokeColor; // bordo nero
-                    d._strokeWidth = selectedNodeStrokeWidth;
-                } 
-                // Nel cluster ma non del topic (mantiene opacità)
-                else {
-                    d._opacity = highlightedNodeOpacity;
+                    // Tweet del cluster CHE APPARTENGONO AL TOPIC:
+                    // Pienamente visibili, colore originale, bordo scuro nitido e IN PRIMO PIANO
+                    d._fillOverride = null;
+                    d._opacity = 1.0;
+                    d._stroke = "#0f172a";
+                    d._strokeWidth = 2.5;
+                    d._keywordMatch = true; // Salgono in primo piano
+                } else {
+                    // Tweet del cluster CHE NON APPARTENGONO AL TOPIC:
+                    // Mantengono il colore originale ma diventano semi-trasparenti (0.10)
+                    d._fillOverride = null;
+                    d._opacity = 0.10;
                     d._stroke = normalNodeStrokeColor;
                     d._strokeWidth = normalNodeStrokeWidth;
                 }
             } else {
-                // fuori dal cluster
+                // Fuori dalla selezione: Grigio neutro (#d9d9d9) e opacità 0.05
                 d._opacity = 0.05;
-                d._stroke = normalNodeStrokeColor;
                 d._strokeWidth = normalNodeStrokeWidth;
+                d._fillOverride = "#d9d9d9";
             }
-        } else {
-            // Standard point-based
-            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
-            d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
-            d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
         }
     });
    
     drawMapCanvas();
 }
+
 d3.selectAll('input[name="topicLens"]').on("change", function() {
     
     currentTopicLens = this.value; 
@@ -2882,165 +2859,60 @@ function renderTopicBarchart(words) {
         highlightTweetsByWord(selectedWordFilter);
     });
 }
+
 function highlightTweetsByWord(word) {
-    const isClusterSelection = selectionMode === "cluster";
-    const isBrushPointSelection = interactionMode === "brush" && selectionMode === "point";
+    selectedWordFilter = word;
+    const isSinglePointClick = interactionMode === "click" && selectionMode === "point";
 
-    if (isBrushPointSelection) {
-        clearBertopicMapHighlight();
-        applySelectionVisualState(); 
-    }
-
-    // Nessuna keyword
     if (!word) {
-        allNodesData.forEach(d => {
-            const matchesTopic = d.topic_id === activeTopicSelectionId;
-            const isInsideSelection = selectedNodeIds.has(d.id);
-
-            d._bertopicHighlight = false;
-            d._brushSelectedBertopicHighlight = false;
-
-            if (isBrushPointSelection) {
-                if (isInsideSelection && matchesTopic) {
-                    d._bertopicHighlight = true;
-                    d._brushSelectedBertopicHighlight = true;
-                    d._opacity = highlightedNodeOpacity;
-                    d._stroke = getBertopicStrokeColor(d);
-                    d._strokeWidth = brushSelectedBertopicNodeStrokeWidth;
-                } else if (!isInsideSelection) {
-                    d._opacity = 0.05;
-                    d._stroke = normalNodeStrokeColor;
-                    d._strokeWidth = normalNodeStrokeWidth;
-                }
-            } else if (isClusterSelection) {
-                if (isInsideSelection) {
-                    if (matchesTopic) {
-                        d._bertopicHighlight = true; 
-                        d._opacity = highlightedNodeOpacity;
-                        d._stroke = selectedNodeStrokeColor;
-                        d._strokeWidth = selectedNodeStrokeWidth;
-                    } else {
-                        d._opacity = highlightedNodeOpacity;
-                        d._stroke = normalNodeStrokeColor;
-                        d._strokeWidth = normalNodeStrokeWidth;
-                    }
-                } else {
-                    d._opacity = 0.05;
-                    d._stroke = normalNodeStrokeColor;
-                    d._strokeWidth = normalNodeStrokeWidth;
-                }
-            } else { // Click Point-based
-                if (matchesTopic) {
-                    d._bertopicHighlight = true; 
-                    d._opacity = highlightedNodeOpacity;
-                    d._stroke = selectedNodeStrokeColor;
-                    d._strokeWidth = selectedNodeStrokeWidth;
-                } else {
-                    d._opacity = 0.05;
-                    d._stroke = normalNodeStrokeColor;
-                    d._strokeWidth = normalNodeStrokeWidth;
-                }
-            }
-        });
-        drawMapCanvas();
+        // Se deselezioni la keyword ma il topic è ancora attivo, riapplica la selezione del topic
+        if (activeTopicSelectionId !== null) {
+            applyTopicSelection(activeTopicSelectionId);
+        }
         return;
     }
 
-    // Keyword
     const lowerWordForCanvas = word.toLowerCase();
 
     allNodesData.forEach(d => {
         const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWordForCanvas);
-        const isInsideSelection = selectedNodeIds.has(d.id);
         const matchesTopic = d.topic_id === activeTopicSelectionId;
+        const isInsideSelection = selectedNodeIds.has(d.id);
 
         d._bertopicHighlight = false;
         d._brushSelectedBertopicHighlight = false;
+        d._keywordMatch = false;
 
-        if (isBrushPointSelection) {
-            if (isInsideSelection && matchesTopic) {
-                d._bertopicHighlight = true;
-                d._brushSelectedBertopicHighlight = true;
-                d._opacity = highlightedNodeOpacity;
-                d._stroke = getBertopicStrokeColor(d);
-                d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : brushSelectedBertopicNodeStrokeWidth;
-            } else if (!isInsideSelection) {
-                d._opacity = 0.05;
-                d._stroke = normalNodeStrokeColor;
-                d._strokeWidth = normalNodeStrokeWidth;
-            }
-        } 
-        else if (isClusterSelection) {
+        if (isSinglePointClick) {
+            d._opacity = (matchesTopic && textContainsWord) ? highlightedNodeOpacity : 0.05;
+            d._fillOverride = null;
+        } else {
             if (isInsideSelection) {
-                if (matchesTopic) {
-                    d._bertopicHighlight = true; 
-                    d._opacity = highlightedNodeOpacity;
-                    d._stroke = selectedNodeStrokeColor; 
-                    d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : selectedNodeStrokeWidth;
-                } else {
-                    // Nel cluster ma non del topic
-                    d._opacity = highlightedNodeOpacity;
+                if (matchesTopic && textContainsWord) {
+                    // Tweet nel cluster, del topic e CONTENGONO LA KEYWORD:
+                    // Pieni, in primo piano, bordo marcato.
+                    d._fillOverride = null;
+                    d._opacity = 1.0;
+                    d._stroke = "#0f172a";
+                    d._strokeWidth = 2.5;
+                    d._keywordMatch = true;
+                } else if (isInsideSelection) {
+                    // Tweet nel cluster ma non corrispondenti alla keyword: semi-trasparenti
+                    d._fillOverride = null;
+                    d._opacity = 0.10;
                     d._stroke = normalNodeStrokeColor;
                     d._strokeWidth = normalNodeStrokeWidth;
                 }
             } else {
+                // Fuori dal cluster: Grigio neutro (#d9d9d9)
                 d._opacity = 0.05;
-                d._stroke = normalNodeStrokeColor;
                 d._strokeWidth = normalNodeStrokeWidth;
-            }
-        } 
-        else { // Click Point-based
-            if (matchesTopic) {
-                d._bertopicHighlight = true; 
-                d._opacity = highlightedNodeOpacity;
-                d._stroke = selectedNodeStrokeColor;
-                d._strokeWidth = textContainsWord ? selectedWordMatchStrokeWidth : selectedNodeStrokeWidth;
-            } else {
-                d._opacity = 0.05;
-                d._stroke = normalNodeStrokeColor;
-                d._strokeWidth = normalNodeStrokeWidth;
+                d._fillOverride = "#d9d9d9";
             }
         }
     });
     
     drawMapCanvas();
-    return;
-
-    const dots = d3.selectAll("circle.node"); 
-
-    if (!word) {
-        
-        dots.transition().duration(300)
-            .style("opacity", d => d.topic_id === activeTopicSelectionId ? highlightedNodeOpacity : 0.05)
-            .style("stroke", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeColor : normalNodeStrokeColor)
-            .style("stroke-width", d => d.topic_id === activeTopicSelectionId ? selectedNodeStrokeWidth : normalNodeStrokeWidth);
-        return;
-    }
-
-   
-    const lowerWord = word.toLowerCase();
-    
-    dots.transition().duration(300)
-        .style("opacity", d => {
-           
-            if (d.topic_id !== activeTopicSelectionId) return 0.05; 
-            
-          
-            const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            
-            
-            return textContainsWord ? highlightedNodeOpacity : 0.2; 
-        })
-        .style("stroke", d => {
-            if (d.topic_id !== activeTopicSelectionId) return normalNodeStrokeColor;
-            const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            return textContainsWord ? selectedNodeStrokeColor : normalNodeStrokeColor;
-        })
-        .style("stroke-width", d => {
-            if (d.topic_id !== activeTopicSelectionId) return normalNodeStrokeWidth;
-            const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWord);
-            return textContainsWord ? selectedNodeStrokeWidth : normalNodeStrokeWidth; 
-        });
 }
 
 const topicDistributionTooltip = d3.select("body")
