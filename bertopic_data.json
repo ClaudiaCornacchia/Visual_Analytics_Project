@@ -1,636 +1,1306 @@
 [
     {
         "id": 0,
-        "count": 2969,
+        "count": 3741,
         "words_raw": [
             {
                 "word": "jetblue",
-                "weight": 0.06418834081808326
+                "weight": 0.04950593063401808
+            },
+            {
+                "word": "southwestair",
+                "weight": 0.044617104901275115
             },
             {
                 "word": "flight",
-                "weight": 0.03681251658485377
-            },
-            {
-                "word": "cancelled",
-                "weight": 0.01991151552277406
+                "weight": 0.030708867493183602
             },
             {
                 "word": "usairways",
-                "weight": 0.019746141274446037
+                "weight": 0.013995760538639353
             },
             {
-                "word": "virginamerica",
-                "weight": 0.01735250776945659
+                "word": "service",
+                "weight": 0.011775145943847614
+            },
+            {
+                "word": "just",
+                "weight": 0.011451760377770525
+            },
+            {
+                "word": "delayed",
+                "weight": 0.011170494843445485
+            },
+            {
+                "word": "thanks",
+                "weight": 0.011159209484711727
+            },
+            {
+                "word": "americanair",
+                "weight": 0.011139680405597522
+            },
+            {
+                "word": "customer",
+                "weight": 0.010536466750206678
             }
         ],
         "words_no_brands": [
             {
                 "word": "flight",
-                "weight": 0.03944575492994986
+                "weight": 0.03276682826106881
             },
             {
-                "word": "cancelled",
-                "weight": 0.021696921279941855
+                "word": "service",
+                "weight": 0.012779902930915299
+            },
+            {
+                "word": "just",
+                "weight": 0.012456221649617648
+            },
+            {
+                "word": "delayed",
+                "weight": 0.01219219742087305
             },
             {
                 "word": "thanks",
-                "weight": 0.013729230761253316
+                "weight": 0.012134104052134265
             },
             {
-                "word": "cancelled flightled",
-                "weight": 0.013524359327911894
+                "word": "customer",
+                "weight": 0.011464410707719017
             },
             {
-                "word": "flightled",
-                "weight": 0.013488524884975005
+                "word": "plane",
+                "weight": 0.011172005204399201
+            },
+            {
+                "word": "time",
+                "weight": 0.011167842697412235
+            },
+            {
+                "word": "cancelled",
+                "weight": 0.011161387603474793
+            },
+            {
+                "word": "hours",
+                "weight": 0.010779588907400665
             }
         ],
         "words_operational": [
             {
                 "word": "flight",
-                "weight": 0.039953833326541704
+                "weight": 0.033189982194688696
             },
             {
-                "word": "cancelled",
-                "weight": 0.02204959846836067
-            },
-            {
-                "word": "cancelled flightled",
-                "weight": 0.013762306391563832
-            },
-            {
-                "word": "flightled",
-                "weight": 0.013725635999425834
+                "word": "service",
+                "weight": 0.012988672347796834
             },
             {
                 "word": "just",
-                "weight": 0.012183030951402423
+                "weight": 0.012665226845389756
+            },
+            {
+                "word": "delayed",
+                "weight": 0.012405263313040411
+            },
+            {
+                "word": "customer",
+                "weight": 0.011657535520876151
+            },
+            {
+                "word": "plane",
+                "weight": 0.011365746865105518
+            },
+            {
+                "word": "time",
+                "weight": 0.01135746940433206
+            },
+            {
+                "word": "cancelled",
+                "weight": 0.011343189703534623
+            },
+            {
+                "word": "hours",
+                "weight": 0.010962394179401595
+            },
+            {
+                "word": "flights",
+                "weight": 0.010864549844852876
             }
         ]
     },
     {
         "id": 1,
-        "count": 619,
+        "count": 641,
         "words_raw": [
             {
-                "word": "united",
-                "weight": 0.0944209184543248
+                "word": "hold",
+                "weight": 0.05654540497043249
+            },
+            {
+                "word": "americanair",
+                "weight": 0.05164356962790415
+            },
+            {
+                "word": "cancelled",
+                "weight": 0.04510264350835999
+            },
+            {
+                "word": "usairways",
+                "weight": 0.041058381068723594
             },
             {
                 "word": "flight",
-                "weight": 0.03117696408985638
+                "weight": 0.03638235437517719
             },
             {
-                "word": "delayed",
-                "weight": 0.02039386263520537
+                "word": "cancelled flightled",
+                "weight": 0.03274348037849995
             },
             {
-                "word": "late",
-                "weight": 0.016768549217653268
+                "word": "flightled",
+                "weight": 0.03265918189028724
             },
             {
-                "word": "service",
-                "weight": 0.015406289047485585
+                "word": "phone",
+                "weight": 0.029906245870315394
+            },
+            {
+                "word": "hours",
+                "weight": 0.028352664590415463
+            },
+            {
+                "word": "help",
+                "weight": 0.021564111049207496
             }
         ],
         "words_no_brands": [
             {
+                "word": "hold",
+                "weight": 0.06057126526681184
+            },
+            {
+                "word": "cancelled",
+                "weight": 0.048132012037501774
+            },
+            {
                 "word": "flight",
-                "weight": 0.03291790581466
+                "weight": 0.038179812135647466
             },
             {
-                "word": "delayed",
-                "weight": 0.022026060853450508
+                "word": "cancelled flightled",
+                "weight": 0.03517495281129673
             },
             {
-                "word": "late",
-                "weight": 0.018144993100935966
+                "word": "flightled",
+                "weight": 0.03508175247486949
             },
             {
-                "word": "service",
-                "weight": 0.01654577329207915
+                "word": "phone",
+                "weight": 0.03216784568809496
             },
             {
-                "word": "plane",
-                "weight": 0.01483724123206504
+                "word": "hours",
+                "weight": 0.030357459453850492
+            },
+            {
+                "word": "help",
+                "weight": 0.023092712048823662
+            },
+            {
+                "word": "ive",
+                "weight": 0.019536486725687474
+            },
+            {
+                "word": "flight cancelled",
+                "weight": 0.01906428404123219
             }
         ],
         "words_operational": [
             {
+                "word": "hold",
+                "weight": 0.060868615356278376
+            },
+            {
+                "word": "cancelled",
+                "weight": 0.048332054413433544
+            },
+            {
                 "word": "flight",
-                "weight": 0.03303319720612981
+                "weight": 0.038211196393412875
             },
             {
-                "word": "delayed",
-                "weight": 0.02220274303937834
+                "word": "cancelled flightled",
+                "weight": 0.035367691364130954
             },
             {
-                "word": "late",
-                "weight": 0.018297442742230063
+                "word": "flightled",
+                "weight": 0.035273452282799836
             },
             {
-                "word": "service",
-                "weight": 0.016659811105030835
+                "word": "phone",
+                "weight": 0.032352270458036014
             },
             {
-                "word": "plane",
-                "weight": 0.014954290226521961
+                "word": "hours",
+                "weight": 0.03050372471812262
+            },
+            {
+                "word": "help",
+                "weight": 0.023204738240449083
+            },
+            {
+                "word": "ive",
+                "weight": 0.019653942235235568
+            },
+            {
+                "word": "flight cancelled",
+                "weight": 0.01916550561254644
             }
         ]
     },
     {
         "id": 2,
-        "count": 547,
+        "count": 471,
         "words_raw": [
             {
-                "word": "hold",
-                "weight": 0.0729588429049134
+                "word": "united",
+                "weight": 0.030212047313652485
+            },
+            {
+                "word": "southwestair",
+                "weight": 0.027350942484258237
             },
             {
                 "word": "usairways",
-                "weight": 0.04583373665020486
+                "weight": 0.024793769615130103
             },
             {
-                "word": "phone",
-                "weight": 0.04474498657514489
+                "word": "virginamerica",
+                "weight": 0.024027018441309948
             },
             {
                 "word": "americanair",
-                "weight": 0.04396713799414565
+                "weight": 0.023758668242184335
             },
             {
-                "word": "hours",
-                "weight": 0.0332277417201269
+                "word": "flight",
+                "weight": 0.016049339248403162
+            },
+            {
+                "word": "thanks",
+                "weight": 0.0127710423585378
+            },
+            {
+                "word": "great",
+                "weight": 0.008983615445749648
+            },
+            {
+                "word": "hold",
+                "weight": 0.008851469042809493
+            },
+            {
+                "word": "amp",
+                "weight": 0.00882214099171179
             }
         ],
         "words_no_brands": [
             {
+                "word": "flight",
+                "weight": 0.017258105140992918
+            },
+            {
+                "word": "thanks",
+                "weight": 0.013994776871785278
+            },
+            {
+                "word": "great",
+                "weight": 0.009919931751563216
+            },
+            {
                 "word": "hold",
-                "weight": 0.07863943928326513
+                "weight": 0.009715779448340272
             },
             {
-                "word": "phone",
-                "weight": 0.04842811923611563
+                "word": "amp",
+                "weight": 0.009695735046445622
             },
             {
-                "word": "hours",
-                "weight": 0.03579855633973856
+                "word": "love",
+                "weight": 0.00830161016911996
             },
             {
-                "word": "ive",
-                "weight": 0.027296651403194382
+                "word": "good",
+                "weight": 0.008299545563863234
             },
             {
-                "word": "hung",
-                "weight": 0.026872791546239824
+                "word": "service",
+                "weight": 0.008282749770594742
+            },
+            {
+                "word": "work",
+                "weight": 0.00799753371871278
+            },
+            {
+                "word": "just",
+                "weight": 0.0076774597073218775
             }
         ],
         "words_operational": [
             {
+                "word": "flight",
+                "weight": 0.017432862193847418
+            },
+            {
+                "word": "great",
+                "weight": 0.01007326031650278
+            },
+            {
                 "word": "hold",
-                "weight": 0.07912801467453931
+                "weight": 0.009854240615771588
             },
             {
-                "word": "phone",
-                "weight": 0.04876895784762897
+                "word": "love",
+                "weight": 0.008435313921936222
             },
             {
-                "word": "hours",
-                "weight": 0.03601770583478888
+                "word": "good",
+                "weight": 0.008430345956788137
             },
             {
-                "word": "ive",
-                "weight": 0.027496389210235464
+                "word": "service",
+                "weight": 0.008394884386394134
             },
             {
-                "word": "hung",
-                "weight": 0.027104939887003018
+                "word": "work",
+                "weight": 0.008124867070959548
+            },
+            {
+                "word": "just",
+                "weight": 0.007784794686820737
+            },
+            {
+                "word": "new",
+                "weight": 0.007592548157822838
+            },
+            {
+                "word": "snow",
+                "weight": 0.0073991412670554105
             }
         ]
     },
     {
         "id": 3,
-        "count": 507,
+        "count": 461,
         "words_raw": [
             {
                 "word": "united",
-                "weight": 0.03492846072829436
+                "weight": 0.10500911138436271
             },
             {
-                "word": "southwestair",
-                "weight": 0.02706429771208603
+                "word": "service",
+                "weight": 0.024872649900906395
             },
             {
-                "word": "usairways",
-                "weight": 0.022939717070316806
+                "word": "customer",
+                "weight": 0.02291554376824421
             },
             {
-                "word": "americanair",
-                "weight": 0.022415527351786067
+                "word": "customer service",
+                "weight": 0.018901470131688337
             },
             {
-                "word": "virginamerica",
-                "weight": 0.021610834005092523
+                "word": "flight",
+                "weight": 0.013609826312573613
+            },
+            {
+                "word": "dont",
+                "weight": 0.012260431912382843
+            },
+            {
+                "word": "im",
+                "weight": 0.012038952592099722
+            },
+            {
+                "word": "just",
+                "weight": 0.011518596927221127
+            },
+            {
+                "word": "time",
+                "weight": 0.011146829766613896
+            },
+            {
+                "word": "people",
+                "weight": 0.010893039283334762
             }
         ],
         "words_no_brands": [
             {
+                "word": "service",
+                "weight": 0.02708319599183283
+            },
+            {
+                "word": "customer",
+                "weight": 0.02501517245924986
+            },
+            {
+                "word": "customer service",
+                "weight": 0.020683637767258217
+            },
+            {
                 "word": "flight",
-                "weight": 0.016973647448847797
+                "weight": 0.014569336910415799
             },
             {
-                "word": "thanks",
-                "weight": 0.013823096202777975
+                "word": "dont",
+                "weight": 0.013444499932824486
             },
             {
-                "word": "hold",
-                "weight": 0.01341944024585763
+                "word": "im",
+                "weight": 0.013168560131296851
             },
             {
-                "word": "amp",
-                "weight": 0.009059128318940157
+                "word": "just",
+                "weight": 0.012569854649515877
             },
             {
-                "word": "great",
-                "weight": 0.008780783324870863
+                "word": "time",
+                "weight": 0.01217622747723842
+            },
+            {
+                "word": "people",
+                "weight": 0.01198271722817413
+            },
+            {
+                "word": "thats",
+                "weight": 0.011780969869261925
             }
         ],
         "words_operational": [
             {
+                "word": "service",
+                "weight": 0.027312366432398684
+            },
+            {
+                "word": "customer",
+                "weight": 0.025239498670084803
+            },
+            {
+                "word": "customer service",
+                "weight": 0.020879231859203415
+            },
+            {
                 "word": "flight",
-                "weight": 0.017121653533663576
+                "weight": 0.014643153414538902
             },
             {
-                "word": "hold",
-                "weight": 0.013591733680504389
+                "word": "dont",
+                "weight": 0.013577276645062319
             },
             {
-                "word": "great",
-                "weight": 0.008904090679899352
+                "word": "im",
+                "weight": 0.01329198208602349
             },
             {
                 "word": "just",
-                "weight": 0.008410403958567418
+                "weight": 0.01268174781221657
             },
             {
-                "word": "good",
-                "weight": 0.008390246756375076
+                "word": "time",
+                "weight": 0.01228703943248745
+            },
+            {
+                "word": "people",
+                "weight": 0.012108629869891726
+            },
+            {
+                "word": "thats",
+                "weight": 0.011909187894714368
             }
         ]
     },
     {
         "id": 4,
-        "count": 369,
+        "count": 357,
         "words_raw": [
             {
                 "word": "bag",
-                "weight": 0.08973017323320019
+                "weight": 0.09052684731728261
             },
             {
                 "word": "luggage",
-                "weight": 0.046491995033924115
-            },
-            {
-                "word": "united",
-                "weight": 0.04372555568591539
+                "weight": 0.04679432585982764
             },
             {
                 "word": "bags",
-                "weight": 0.04334773267534905
+                "weight": 0.04354776011874542
+            },
+            {
+                "word": "united",
+                "weight": 0.04138795568061848
             },
             {
                 "word": "lost",
-                "weight": 0.03973946805464821
+                "weight": 0.04097344640655439
+            },
+            {
+                "word": "baggage",
+                "weight": 0.02931357065066042
+            },
+            {
+                "word": "americanair",
+                "weight": 0.022666918989036354
+            },
+            {
+                "word": "usairways",
+                "weight": 0.022365114373708264
+            },
+            {
+                "word": "help",
+                "weight": 0.015559640748507943
+            },
+            {
+                "word": "claim",
+                "weight": 0.015368243771207983
             }
         ],
         "words_no_brands": [
             {
                 "word": "bag",
-                "weight": 0.09675386434690227
+                "weight": 0.09766236455485354
             },
             {
                 "word": "luggage",
-                "weight": 0.0503229111743
+                "weight": 0.05067582116631858
             },
             {
                 "word": "bags",
-                "weight": 0.04692462830891456
+                "weight": 0.04716505034308928
             },
             {
                 "word": "lost",
-                "weight": 0.04304263956743817
+                "weight": 0.04440167645048764
             },
             {
                 "word": "baggage",
-                "weight": 0.03269764597173301
+                "weight": 0.03178408365887995
+            },
+            {
+                "word": "claim",
+                "weight": 0.01674293884046579
+            },
+            {
+                "word": "help",
+                "weight": 0.0167295721277876
+            },
+            {
+                "word": "checked",
+                "weight": 0.01515122130677872
+            },
+            {
+                "word": "clothes",
+                "weight": 0.014919062004862926
+            },
+            {
+                "word": "lost bag",
+                "weight": 0.013907642362691819
             }
         ],
         "words_operational": [
             {
                 "word": "bag",
-                "weight": 0.09821253264451739
+                "weight": 0.09904965828224828
             },
             {
                 "word": "luggage",
-                "weight": 0.051120339875716216
+                "weight": 0.051434666260230084
             },
             {
                 "word": "bags",
-                "weight": 0.047669228805140934
+                "weight": 0.047872349537883184
             },
             {
                 "word": "lost",
-                "weight": 0.04373048631689747
+                "weight": 0.04507252978220045
             },
             {
                 "word": "baggage",
-                "weight": 0.03322388017950441
+                "weight": 0.032267900978272285
+            },
+            {
+                "word": "claim",
+                "weight": 0.01701383947878358
+            },
+            {
+                "word": "help",
+                "weight": 0.016955843213464435
+            },
+            {
+                "word": "checked",
+                "weight": 0.015392993961941536
+            },
+            {
+                "word": "clothes",
+                "weight": 0.01516976000326593
+            },
+            {
+                "word": "lost bag",
+                "weight": 0.014141051662536153
             }
         ]
     },
     {
         "id": 5,
-        "count": 311,
+        "count": 294,
         "words_raw": [
             {
                 "word": "americanair",
-                "weight": 0.0622656954089253
+                "weight": 0.1367976118222931
             },
             {
-                "word": "customer",
-                "weight": 0.0402228531005125
+                "word": "usairways",
+                "weight": 0.10448092313096768
             },
             {
-                "word": "service",
-                "weight": 0.035619694198440695
+                "word": "thank",
+                "weight": 0.07890404276227632
             },
             {
-                "word": "customer service",
-                "weight": 0.03326348860592508
+                "word": "thanks",
+                "weight": 0.07419653816940122
             },
             {
-                "word": "southwestair",
-                "weight": 0.029647605533942228
+                "word": "americanair thank",
+                "weight": 0.04965189646292576
+            },
+            {
+                "word": "thanks americanair",
+                "weight": 0.04875036584937305
+            },
+            {
+                "word": "americanair thanks",
+                "weight": 0.046930409182206555
+            },
+            {
+                "word": "thank americanair",
+                "weight": 0.041951144657483036
+            },
+            {
+                "word": "usairways thank",
+                "weight": 0.03563809513806532
+            },
+            {
+                "word": "thank usairways",
+                "weight": 0.03060023404967804
             }
         ],
         "words_no_brands": [
             {
-                "word": "customer",
-                "weight": 0.044017806491787874
+                "word": "thank",
+                "weight": 0.10106738544207079
             },
             {
-                "word": "service",
-                "weight": 0.03888214648920901
+                "word": "thanks",
+                "weight": 0.09461277439466895
             },
             {
-                "word": "customer service",
-                "weight": 0.03649062686078623
+                "word": "great",
+                "weight": 0.034429127198683296
             },
             {
-                "word": "weather",
-                "weight": 0.025123552081184487
+                "word": "flight",
+                "weight": 0.02642547371774103
             },
             {
-                "word": "customers",
-                "weight": 0.024642450515189707
+                "word": "awesome",
+                "weight": 0.025445796519136494
+            },
+            {
+                "word": "aa",
+                "weight": 0.02337577493443666
+            },
+            {
+                "word": "app",
+                "weight": 0.021481918172044458
+            },
+            {
+                "word": "guys",
+                "weight": 0.021365282210545473
+            },
+            {
+                "word": "thanks thank",
+                "weight": 0.01845325088102731
+            },
+            {
+                "word": "response",
+                "weight": 0.018246878329412696
             }
         ],
         "words_operational": [
             {
-                "word": "customer",
-                "weight": 0.044496826209622135
+                "word": "great",
+                "weight": 0.03947328801018097
             },
             {
-                "word": "service",
-                "weight": 0.03928557062564444
+                "word": "flight",
+                "weight": 0.03013799005245004
             },
             {
-                "word": "customer service",
-                "weight": 0.0369056053577086
+                "word": "awesome",
+                "weight": 0.02920605210830839
             },
             {
-                "word": "weather",
-                "weight": 0.025437068504778722
+                "word": "aa",
+                "weight": 0.026819718596269294
             },
             {
-                "word": "customers",
-                "weight": 0.024960189944371672
+                "word": "app",
+                "weight": 0.02466214619364699
+            },
+            {
+                "word": "guys",
+                "weight": 0.02449002712708229
+            },
+            {
+                "word": "response",
+                "weight": 0.020932728033731023
+            },
+            {
+                "word": "good",
+                "weight": 0.01969164740497093
+            },
+            {
+                "word": "flying",
+                "weight": 0.01922795055366621
+            },
+            {
+                "word": "did",
+                "weight": 0.018974611788982403
             }
         ]
     },
     {
         "id": 6,
-        "count": 227,
+        "count": 242,
         "words_raw": [
             {
-                "word": "southwestair",
-                "weight": 0.19188036685438428
+                "word": "virginamerica",
+                "weight": 0.2262754358283289
             },
             {
-                "word": "destinationdragons",
-                "weight": 0.061275239238547906
+                "word": "flight",
+                "weight": 0.0236702327590051
             },
             {
-                "word": "thank",
-                "weight": 0.0448588772206875
+                "word": "virginamerica thanks",
+                "weight": 0.021692244177018555
             },
             {
-                "word": "southwestair thank",
-                "weight": 0.03970400628093667
+                "word": "virgin",
+                "weight": 0.019498365488568453
             },
             {
-                "word": "thank southwestair",
-                "weight": 0.039129864162921954
+                "word": "flying",
+                "weight": 0.019281380271416675
+            },
+            {
+                "word": "love",
+                "weight": 0.01777722159669606
+            },
+            {
+                "word": "virginamerica thank",
+                "weight": 0.016121758279360337
+            },
+            {
+                "word": "just",
+                "weight": 0.016068266238935112
+            },
+            {
+                "word": "thanks",
+                "weight": 0.015905334225045562
+            },
+            {
+                "word": "guys",
+                "weight": 0.015076763006816296
             }
         ],
         "words_no_brands": [
             {
-                "word": "destinationdragons",
-                "weight": 0.0724486391775285
+                "word": "flight",
+                "weight": 0.025662766572155993
             },
             {
-                "word": "thank",
-                "weight": 0.05242425919533493
+                "word": "flying",
+                "weight": 0.021485731681876143
             },
             {
-                "word": "imaginedragons",
-                "weight": 0.042447730172109926
+                "word": "love",
+                "weight": 0.019855666892282357
             },
             {
-                "word": "companion pass",
-                "weight": 0.039083914516103845
+                "word": "just",
+                "weight": 0.01775879259932334
             },
             {
-                "word": "companion",
-                "weight": 0.03765071117777834
+                "word": "thanks",
+                "weight": 0.017573061324488517
+            },
+            {
+                "word": "guys",
+                "weight": 0.016766565824774978
+            },
+            {
+                "word": "site",
+                "weight": 0.01653658164141095
+            },
+            {
+                "word": "website",
+                "weight": 0.01576319028516163
+            },
+            {
+                "word": "im",
+                "weight": 0.015546741653751363
+            },
+            {
+                "word": "fly",
+                "weight": 0.015157697546206038
             }
         ],
         "words_operational": [
             {
-                "word": "destinationdragons",
-                "weight": 0.07958794891985883
+                "word": "flight",
+                "weight": 0.026072984774654237
             },
             {
-                "word": "imaginedragons",
-                "weight": 0.046652212107026136
+                "word": "flying",
+                "weight": 0.021948284010710712
             },
             {
-                "word": "companion pass",
-                "weight": 0.042964050115650534
+                "word": "love",
+                "weight": 0.020292477961003003
             },
             {
-                "word": "companion",
-                "weight": 0.0413724954813684
+                "word": "just",
+                "weight": 0.01811151347513281
             },
             {
-                "word": "tickets",
-                "weight": 0.03676955388287242
+                "word": "guys",
+                "weight": 0.017120660856952682
+            },
+            {
+                "word": "site",
+                "weight": 0.016914770775242803
+            },
+            {
+                "word": "website",
+                "weight": 0.016114263233790345
+            },
+            {
+                "word": "im",
+                "weight": 0.015862925666763134
+            },
+            {
+                "word": "fly",
+                "weight": 0.015480512894396066
+            },
+            {
+                "word": "flights",
+                "weight": 0.015364630775119185
             }
         ]
     },
     {
         "id": 7,
-        "count": 192,
+        "count": 209,
         "words_raw": [
             {
                 "word": "united",
-                "weight": 0.18830737790319413
+                "weight": 0.1934411785441413
             },
             {
                 "word": "thank",
-                "weight": 0.08223205975710443
+                "weight": 0.07668832539145694
             },
             {
                 "word": "united thank",
-                "weight": 0.07792815764990009
+                "weight": 0.07546974991072865
             },
             {
-                "word": "dm",
-                "weight": 0.07470383519163967
+                "word": "united thanks",
+                "weight": 0.06860727477541227
+            },
+            {
+                "word": "thanks",
+                "weight": 0.06466252634139187
             },
             {
                 "word": "thank united",
-                "weight": 0.06481502725999992
+                "weight": 0.05440092737440443
+            },
+            {
+                "word": "thanks united",
+                "weight": 0.04192763883929369
+            },
+            {
+                "word": "appreciate",
+                "weight": 0.025353937766912242
+            },
+            {
+                "word": "united guys",
+                "weight": 0.02312037500348206
+            },
+            {
+                "word": "thank help",
+                "weight": 0.01712778528164724
             }
         ],
         "words_no_brands": [
             {
                 "word": "thank",
-                "weight": 0.10034904935742242
-            },
-            {
-                "word": "dm",
-                "weight": 0.09180811688345868
+                "weight": 0.09448651943846798
             },
             {
                 "word": "thanks",
-                "weight": 0.0681899956861042
+                "weight": 0.07931359312519304
             },
             {
-                "word": "follow",
-                "weight": 0.04113747319447645
+                "word": "appreciate",
+                "weight": 0.03152407748105194
             },
             {
-                "word": "sent",
-                "weight": 0.038050512730807666
+                "word": "thank help",
+                "weight": 0.02081995801252062
+            },
+            {
+                "word": "thank thank",
+                "weight": 0.020642562114689785
+            },
+            {
+                "word": "gate",
+                "weight": 0.019828979659038636
+            },
+            {
+                "word": "help",
+                "weight": 0.019758214369513513
+            },
+            {
+                "word": "guys",
+                "weight": 0.018918396677985685
+            },
+            {
+                "word": "good",
+                "weight": 0.018292012727515104
+            },
+            {
+                "word": "did",
+                "weight": 0.017629265121112073
             }
         ],
         "words_operational": [
             {
-                "word": "email",
-                "weight": 0.04383867223883184
-            },
-            {
                 "word": "appreciate",
-                "weight": 0.03697753279452931
+                "weight": 0.0356350566960531
             },
             {
-                "word": "confirmation",
-                "weight": 0.02842821429853386
+                "word": "gate",
+                "weight": 0.02237466865522253
             },
             {
-                "word": "message",
-                "weight": 0.026455942966204224
+                "word": "help",
+                "weight": 0.022280719875420452
             },
             {
-                "word": "details",
-                "weight": 0.026116967649485356
+                "word": "guys",
+                "weight": 0.021355517335683746
+            },
+            {
+                "word": "good",
+                "weight": 0.020659206297399375
+            },
+            {
+                "word": "did",
+                "weight": 0.019906938779672523
+            },
+            {
+                "word": "reply",
+                "weight": 0.019762320803587467
+            },
+            {
+                "word": "awesome",
+                "weight": 0.017509203434021157
+            },
+            {
+                "word": "just",
+                "weight": 0.017212541623038473
+            },
+            {
+                "word": "great",
+                "weight": 0.016704333844318357
             }
         ]
     },
     {
         "id": 8,
-        "count": 70,
+        "count": 116,
         "words_raw": [
             {
-                "word": "wifi",
-                "weight": 0.2117014078832746
+                "word": "united",
+                "weight": 0.09939711682975848
             },
             {
-                "word": "southwestair",
-                "weight": 0.0512720829617577
+                "word": "dm",
+                "weight": 0.06257647178157609
             },
             {
-                "word": "southwestair wifi",
-                "weight": 0.04737801481326279
+                "word": "phone",
+                "weight": 0.04161854216842138
             },
             {
-                "word": "inflight wifi",
-                "weight": 0.038445525439024776
+                "word": "customer",
+                "weight": 0.03358928767044046
             },
             {
-                "word": "inflight",
-                "weight": 0.03667235169678734
+                "word": "hold",
+                "weight": 0.03017629640322311
+            },
+            {
+                "word": "number",
+                "weight": 0.029100574493964994
+            },
+            {
+                "word": "email",
+                "weight": 0.02731970709695152
+            },
+            {
+                "word": "send",
+                "weight": 0.027066087321330496
+            },
+            {
+                "word": "customer service",
+                "weight": 0.02687736000483542
+            },
+            {
+                "word": "sent",
+                "weight": 0.026807382110057957
             }
         ],
         "words_no_brands": [
             {
-                "word": "wifi",
-                "weight": 0.22793417541715122
+                "word": "dm",
+                "weight": 0.0686334799264039
             },
             {
-                "word": "inflight wifi",
-                "weight": 0.041707302089278295
+                "word": "phone",
+                "weight": 0.045385120486077665
             },
             {
-                "word": "inflight",
-                "weight": 0.03966951548281316
+                "word": "customer",
+                "weight": 0.03644151836149795
             },
             {
-                "word": "slow",
-                "weight": 0.03333264919616485
+                "word": "hold",
+                "weight": 0.032771914698243435
             },
             {
-                "word": "power",
-                "weight": 0.0285708421681413
+                "word": "number",
+                "weight": 0.03188802263435856
+            },
+            {
+                "word": "email",
+                "weight": 0.029944716142265952
+            },
+            {
+                "word": "send",
+                "weight": 0.029775399219896394
+            },
+            {
+                "word": "sent",
+                "weight": 0.02942650678263074
+            },
+            {
+                "word": "customer service",
+                "weight": 0.02923077185695484
+            },
+            {
+                "word": "hung",
+                "weight": 0.02874376551250557
             }
         ],
         "words_operational": [
             {
-                "word": "wifi",
-                "weight": 0.22982498846875357
+                "word": "phone",
+                "weight": 0.049014952695734325
             },
             {
-                "word": "inflight wifi",
-                "weight": 0.04211608489637702
+                "word": "customer",
+                "weight": 0.039315881425015936
             },
             {
-                "word": "inflight",
-                "weight": 0.04003563415548761
+                "word": "hold",
+                "weight": 0.03536396075234821
             },
             {
-                "word": "slow",
-                "weight": 0.03364943528738046
+                "word": "number",
+                "weight": 0.03447145440106556
             },
             {
-                "word": "power",
-                "weight": 0.028842373103468967
+                "word": "email",
+                "weight": 0.032372456385645045
+            },
+            {
+                "word": "customer service",
+                "weight": 0.03155165952323075
+            },
+            {
+                "word": "hung",
+                "weight": 0.031091992151873145
+            },
+            {
+                "word": "service",
+                "weight": 0.029921352283164834
+            },
+            {
+                "word": "contact",
+                "weight": 0.02688727218469467
+            },
+            {
+                "word": "just",
+                "weight": 0.023673211364242736
             }
         ]
     },
     {
         "id": 9,
+        "count": 65,
+        "words_raw": [
+            {
+                "word": "wifi",
+                "weight": 0.2132023960294439
+            },
+            {
+                "word": "southwestair",
+                "weight": 0.05094974615700873
+            },
+            {
+                "word": "southwestair wifi",
+                "weight": 0.04502040223133665
+            },
+            {
+                "word": "inflight wifi",
+                "weight": 0.03551761995332641
+            },
+            {
+                "word": "inflight",
+                "weight": 0.034417255869732793
+            },
+            {
+                "word": "slow",
+                "weight": 0.03248949365553899
+            },
+            {
+                "word": "united",
+                "weight": 0.03229673279881385
+            },
+            {
+                "word": "united wifi",
+                "weight": 0.027369487383035775
+            },
+            {
+                "word": "wifi flight",
+                "weight": 0.026749143027990138
+            },
+            {
+                "word": "working",
+                "weight": 0.02431413332308596
+            }
+        ],
+        "words_no_brands": [
+            {
+                "word": "wifi",
+                "weight": 0.22913984279273716
+            },
+            {
+                "word": "inflight wifi",
+                "weight": 0.038462099089635014
+            },
+            {
+                "word": "inflight",
+                "weight": 0.037163551084023715
+            },
+            {
+                "word": "slow",
+                "weight": 0.03513036510786813
+            },
+            {
+                "word": "wifi flight",
+                "weight": 0.028990709602539324
+            },
+            {
+                "word": "working",
+                "weight": 0.02613769345819616
+            },
+            {
+                "word": "plane",
+                "weight": 0.025246300899386575
+            },
+            {
+                "word": "flight",
+                "weight": 0.024558865349514077
+            },
+            {
+                "word": "new",
+                "weight": 0.02290571007196708
+            },
+            {
+                "word": "entertainment",
+                "weight": 0.020074494347353214
+            }
+        ],
+        "words_operational": [
+            {
+                "word": "wifi",
+                "weight": 0.2312022470294039
+            },
+            {
+                "word": "inflight wifi",
+                "weight": 0.038866238937687335
+            },
+            {
+                "word": "inflight",
+                "weight": 0.03753277370587854
+            },
+            {
+                "word": "slow",
+                "weight": 0.035489039950016295
+            },
+            {
+                "word": "wifi flight",
+                "weight": 0.02930010599873376
+            },
+            {
+                "word": "working",
+                "weight": 0.026374151687480005
+            },
+            {
+                "word": "plane",
+                "weight": 0.02542365150991622
+            },
+            {
+                "word": "flight",
+                "weight": 0.024623752388841808
+            },
+            {
+                "word": "new",
+                "weight": 0.023098712452340294
+            },
+            {
+                "word": "entertainment",
+                "weight": 0.02027945140000931
+            }
+        ]
+    },
+    {
+        "id": 10,
         "count": 22,
         "words_raw": [
             {
@@ -652,6 +1322,26 @@
             {
                 "word": "following flight",
                 "weight": 0.07705580004683303
+            },
+            {
+                "word": "arrives flytpa",
+                "weight": 0.07705580004683303
+            },
+            {
+                "word": "flytpa following",
+                "weight": 0.07705580004683303
+            },
+            {
+                "word": "arrives",
+                "weight": 0.06851589834533389
+            },
+            {
+                "word": "following",
+                "weight": 0.0611715136467487
+            },
+            {
+                "word": "usairways flight",
+                "weight": 0.06089569014762429
             }
         ],
         "words_no_brands": [
@@ -674,6 +1364,26 @@
             {
                 "word": "flytpa following",
                 "weight": 0.08463209987466848
+            },
+            {
+                "word": "arrives flytpa",
+                "weight": 0.08463209987466848
+            },
+            {
+                "word": "following flight",
+                "weight": 0.08463209987466848
+            },
+            {
+                "word": "arrives",
+                "weight": 0.07511671371622339
+            },
+            {
+                "word": "following",
+                "weight": 0.06693397814327899
+            },
+            {
+                "word": "departs mco",
+                "weight": 0.06571518855571384
             }
         ],
         "words_operational": [
@@ -696,11 +1406,31 @@
             {
                 "word": "arrives flytpa",
                 "weight": 0.08618530201839851
+            },
+            {
+                "word": "flytpa flight",
+                "weight": 0.08618530201839851
+            },
+            {
+                "word": "arrives",
+                "weight": 0.0764681045751486
+            },
+            {
+                "word": "mco enroute",
+                "weight": 0.0669276336045037
+            },
+            {
+                "word": "departs mco",
+                "weight": 0.0669276336045037
+            },
+            {
+                "word": "icy",
+                "weight": 0.0614136439262584
             }
         ]
     },
     {
-        "id": 10,
+        "id": 11,
         "count": 17,
         "words_raw": [
             {
@@ -722,6 +1452,26 @@
             {
                 "word": "passengers wall",
                 "weight": 0.263954343513546
+            },
+            {
+                "word": "street",
+                "weight": 0.2611962717076875
+            },
+            {
+                "word": "battles",
+                "weight": 0.24640013521108423
+            },
+            {
+                "word": "appease passengers",
+                "weight": 0.24640013521108423
+            },
+            {
+                "word": "jetblues ceo",
+                "weight": 0.24640013521108423
+            },
+            {
+                "word": "ceo battles",
+                "weight": 0.24640013521108423
             }
         ],
         "words_no_brands": [
@@ -744,6 +1494,26 @@
             {
                 "word": "street",
                 "weight": 0.2977389235396216
+            },
+            {
+                "word": "appease passengers",
+                "weight": 0.28097569572477976
+            },
+            {
+                "word": "battles",
+                "weight": 0.28097569572477976
+            },
+            {
+                "word": "ceo battles",
+                "weight": 0.28097569572477976
+            },
+            {
+                "word": "appease",
+                "weight": 0.2777875123017695
+            },
+            {
+                "word": "battles appease",
+                "weight": 0.26073822467201757
             }
         ],
         "words_operational": [
@@ -766,76 +1536,26 @@
             {
                 "word": "street",
                 "weight": 0.29675169498484205
-            }
-        ]
-    },
-    {
-        "id": 11,
-        "count": 16,
-        "words_raw": [
-            {
-                "word": "crew",
-                "weight": 0.1264038416280297
             },
             {
-                "word": "flt",
-                "weight": 0.06427741707565963
+                "word": "appease passengers",
+                "weight": 0.28006427427482555
             },
             {
-                "word": "southwestair",
-                "weight": 0.060436997016025375
+                "word": "battles",
+                "weight": 0.28006427427482555
             },
             {
-                "word": "great",
-                "weight": 0.05276178879704862
+                "word": "ceo battles",
+                "weight": 0.28006427427482555
             },
             {
-                "word": "1700",
-                "weight": 0.046290712890381926
-            }
-        ],
-        "words_no_brands": [
-            {
-                "word": "crew",
-                "weight": 0.13342233063376463
+                "word": "appease",
+                "weight": 0.27687615763332557
             },
             {
-                "word": "flt",
-                "weight": 0.06803239344530201
-            },
-            {
-                "word": "great",
-                "weight": 0.05556653499935787
-            },
-            {
-                "word": "professionals",
-                "weight": 0.04951732108364869
-            },
-            {
-                "word": "flight 1700",
-                "weight": 0.04951732108364869
-            }
-        ],
-        "words_operational": [
-            {
-                "word": "crew",
-                "weight": 0.13814409837496505
-            },
-            {
-                "word": "flt",
-                "weight": 0.07047829594979964
-            },
-            {
-                "word": "great",
-                "weight": 0.057507388380464305
-            },
-            {
-                "word": "professionals",
-                "weight": 0.051405035340253286
-            },
-            {
-                "word": "flight 1700",
-                "weight": 0.051405035340253286
+                "word": "battles appease",
+                "weight": 0.2599026937842024
             }
         ]
     }
