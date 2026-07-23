@@ -22,6 +22,8 @@ function postJson(path, payload) {
     }).then(parseApiResponse);
 }
 
+let hideOutliers = false;
+
 // Define color palettes for standard visualization 
 const sentimentColors = {
     positive: "#91cf60",
@@ -387,7 +389,6 @@ function resolveSelectionForCurrentMode(nodes, originalNode = null) {
     if (interactionMode === "brush") {
         return resolveBrushSelectionMode(nodes);
     }
-
     return resolveClickSelectionMode(nodes, originalNode);
 }
 
@@ -404,6 +405,7 @@ function setClusterEncoding(encoding, options = {}) {
     const { clearSelectionOnChange = false } = options;
     const encodingChanged = currentColorEncoding !== encoding;
     currentColorEncoding = encoding;
+    updateOutlierToggleVisibility();
     if (encodingChanged) {
         clearPerturbationState();
         if (clearSelectionOnChange && selectedNodesData.length) {
@@ -415,6 +417,31 @@ function setClusterEncoding(encoding, options = {}) {
     }
     syncModeButtons();
     applySelectionVisualState();
+    if (activeKeyword) {
+        applySelectionVisualState();
+        allNodesData.forEach(nodeData => {
+            const hasWord = nodeData.text.toLowerCase().includes(activeKeyword);
+            const isInsideSelection = selectedNodeIds.has(nodeData.id);
+            if (isInsideSelection) {
+                nodeData._fillOverride = null;
+                if (hasWord) {
+                    nodeData._opacity = 1;
+                    nodeData._keywordMatch = true;
+                } else {
+                    nodeData._opacity = 0.10;
+                    nodeData._keywordMatch = false;
+                }
+            } else {
+                nodeData._fillOverride = "#d9d9d9";
+                nodeData._opacity = 0.05;
+                nodeData._keywordMatch = false;
+            }
+        });
+    } else if (activeTopicSelectionId !== null) {
+        applyTopicSelection(activeTopicSelectionId);
+    } else {
+        applySelectionVisualState();
+    }
     updateNodeColors();
     renderMapLegends(selectedNodesData);
 
@@ -741,8 +768,13 @@ function drawMapCanvas() {
     mapContext.clearRect(0, 0, width, height);
     const transform = d3.zoomTransform(svg.node());
     const highlightedNodes = [];
+    const isTopicView = currentColorEncoding === "topic";
 
     allNodesData.forEach(node => {
+        if (isTopicView && hideOutliers && node.topic_id === -1) {
+            return;
+        }
+
         if (node._selected || node._keywordHighlight || node._bertopicHighlight || node._keywordMatch) {
             highlightedNodes.push(node);
             return;
@@ -750,7 +782,7 @@ function drawMapCanvas() {
         drawCanvasNode(node, transform);
     });
 
-    // Sort highlighted nodes so they are drawn on top
+    // Sort  nodes so they are drawn on top
     highlightedNodes
         .sort((a, b) => {
             const getHighlightWeight = item =>
@@ -758,7 +790,7 @@ function drawMapCanvas() {
                 + Number(Boolean(item._brushSelectedKeywordHighlight)) * 2
                 + Number(Boolean(item._brushSelectedBertopicHighlight)) * 3
                 + Number(Boolean(item._selectionAnchor)) * 4
-                + Number(Boolean(item._keywordMatch)) * 5; // <-- Priorità massima: disegnato per ultimo = IN PRIMO PIANO
+                + Number(Boolean(item._keywordMatch)) * 5; //  IN PRIMO PIANO
             return getHighlightWeight(a) - getHighlightWeight(b);
         })
         .forEach(node => drawCanvasNode(node, transform, true));
@@ -873,8 +905,10 @@ function findCanvasNodeAt(screenX, screenY) {
     let nearest = null;
     let nearestDistance = Infinity;
 
+    const isTopicView = currentColorEncoding === "topic";
     const hitNodes = [...perturbationVisualNodes].reverse().concat(allNodesData);
     for (const node of hitNodes) {
+        if (isTopicView && hideOutliers && node.topic_id === -1) continue;
         const position = getCurrentNodePosition(node);
         const dx = transform.applyX(position.x) - screenX;
         const dy = transform.applyY(position.y) - screenY;
@@ -1473,6 +1507,7 @@ function updateSelectionUI() {
     selectedNodeIds = new Set(selectedNodesData.map(node => node.id));
     const selectionAttributeGrid = document.getElementById("tw-sentiment")?.closest("div")?.parentElement;
 
+    updateOutlierToggleVisibility();
     applySelectionVisualState();
     drawMapCanvas();
     updateOriginalTextVisibility();
@@ -1806,7 +1841,11 @@ const brush = d3.brush()
 
         const [[x0, y0], [x1, y1]] = event.selection;
         const transform = d3.zoomTransform(svg.node());
+        const isTopicView = currentColorEncoding === "topic";
         const brushedNodes = allNodesData.filter(node => {
+            if (isTopicView && hideOutliers && node.topic_id === -1) {
+                return false;
+            }
             const position = getCurrentNodePosition(node);
             const screenX = transform.applyX(position.x);
             const screenY = transform.applyY(position.y);
@@ -1821,7 +1860,6 @@ const brush = d3.brush()
             fitSelectionToView(resolvedNodes, 380);
         }
         brushLayer.call(brush.move, null);
-        console.log("Brushed:", resolvedNodes.length);
     });
 
 svg.call(zoom).on("dblclick.zoom", null);
@@ -2984,3 +3022,24 @@ window.addEventListener("resize", () => {
         renderTopicBarchart(currentTopicWords);
     }
 });
+
+
+function updateOutlierToggleVisibility() {
+    const container = document.getElementById("outlier-toggle-container");
+    if (container) {
+        container.style.display = (currentColorEncoding === "topic") ? "block" : "none";
+    }
+}
+
+const toggleHideOutliersCheckbox = document.getElementById("toggle-hide-outliers");
+if (toggleHideOutliersCheckbox) {
+    toggleHideOutliersCheckbox.addEventListener("change", (e) => {
+        hideOutliers = e.target.checked;
+        if (activeTopicSelectionId !== null) {
+            applyTopicSelection(activeTopicSelectionId);
+        } else {
+            applySelectionVisualState();
+            drawMapCanvas();
+        }
+    });
+}
