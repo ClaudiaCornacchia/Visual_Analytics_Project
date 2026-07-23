@@ -1672,7 +1672,7 @@ function selectNodes(nodes, options = {}) {
 
         postJson("/api/tfidf", { 
             texts: selectedTexts,
-            top_n: parseInt(document.getElementById("tfidf-limit").value)
+            top_n: parseInt(document.getElementById("tfidf-limit").value, 10) 
         })
         .then(data => {
             loadingText.style.display = "none";
@@ -2413,34 +2413,42 @@ function clearKeywordHighlight() {
     drawMapCanvas();
 }
 
-// Event listener per slider TF-IDF e BERTopic
-const tfidfSlider = document.getElementById("tfidf-limit");
-const tfidfValDisplay = document.getElementById("tfidf-limit-val");
+// Event listener per TF-IDF e BERTopic
+const tfidfInput = document.getElementById("tfidf-limit");
 
-tfidfSlider.addEventListener("input", (e) => {
-    tfidfValDisplay.innerText = e.target.value;
-});
+if (tfidfInput) {
+    tfidfInput.addEventListener("change", (e) => {
+        let val = parseInt(e.target.value, 10);
+        
+        // Validazione dei limiti
+        if (isNaN(val) || val < 1) { val = 1; }
+        if (val > 30) { val = 30; }
+        e.target.value = val;
+        
+        // Ricalcola se ci sono tweet selezionati
+        if (selectedNodesData.length > 5) {
+            selectNodes(selectedNodesData, { append: false, toggle: false }); 
+        }
+    });
+}
 
-tfidfSlider.addEventListener("change", () => {
-    // Ricalcola se ci sono nodi selezionati
-    if (selectedNodesData.length > 5) {
-        selectNodes(selectedNodesData, { append: false, toggle: false }); 
-    }
-});
+const bertopicInput = document.getElementById("bertopic-limit");
 
-const bertopicSlider = document.getElementById("bertopic-limit");
-const bertopicValDisplay = document.getElementById("bertopic-limit-val");
-
-bertopicSlider.addEventListener("input", (e) => {
-    bertopicValDisplay.innerText = e.target.value;
-});
-
-bertopicSlider.addEventListener("change", () => {
-    // Ricarica il grafico corrente usando i dati memorizzati
-    if (currentTopicWords) {
-        renderTopicBarchart(currentTopicWords); 
-    }
-});
+if (bertopicInput) {
+    bertopicInput.addEventListener("change", (e) => {
+        let val = parseInt(e.target.value, 10);
+        
+        // Validazione dei limiti
+        if (isNaN(val) || val < 1) { val = 1; }
+        if (val > 10) { val = 10; }
+        e.target.value = val;
+        
+        // Ricarica il grafico usando i dati attualmente memorizzati
+        if (currentTopicWords) {
+            renderTopicBarchart(currentTopicWords); 
+        }
+    });
+}
 
 function updateTFIDFChart(data) {
     currentTfidfData = data;
@@ -2864,8 +2872,9 @@ function renderTopicBarchart(words) {
         return;
     }
 
-    // Cut the array based on the slider
-    const limit = parseInt(document.getElementById("bertopic-limit").value);
+    // Leggi il limite dal box e taglia l'array
+    const limitInput = document.getElementById("bertopic-limit");
+    const limit = limitInput ? parseInt(limitInput.value, 10) : 10;
     const wordsToShow = words.slice(0, limit);
 
     const width = Math.max(document.getElementById("topic-barchart").clientWidth, 200);

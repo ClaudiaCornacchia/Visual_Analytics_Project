@@ -362,9 +362,9 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 10px; font-size: 0.9rem; color: #475569;">
-                        <label for="tfidf-limit">Number of keywords: <span id="tfidf-limit-val">10</span></label>
-                        <input type="range" id="tfidf-limit" min="3" max="30" value="10" style="width: 100%; cursor: pointer;">
+                <div style="margin-top: 10px; font-size: 0.9rem; color: #475569; display: flex; align-items: center; gap: 8px;">
+                    <label for="tfidf-limit" style="font-weight: 600;">Number of keywords (max 30):</label>
+                    <input type="number" id="tfidf-limit" min="1" max="30" value="10" style="width: 60px; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; outline: none;">
                 </div>
                 
                 <div id="tfidf-loading" style="display: none; text-align: center; color: #f59e0b; font-size: 0.96rem; margin-top: 10px;">
@@ -407,9 +407,9 @@
                             </label>
                         </div>
 
-                        <div style="margin-top: 10px; margin-bottom: 10px; font-size: 0.9rem; color: #475569;">
-                            <label for="bertopic-limit">Number of keywords: <span id="bertopic-limit-val">5</span></label>
-                            <input type="range" id="bertopic-limit" min="3" max="30" value="5" style="width: 100%; cursor: pointer;">
+                        <div style="margin-top: 10px; margin-bottom: 12px; font-size: 0.9rem; color: #475569; display: flex; align-items: center; gap: 8px;">
+                            <label for="bertopic-limit" style="font-weight: 600;">Number of keywords (max 10):</label>
+                            <input type="number" id="bertopic-limit" min="1" max="10" value="10" style="width: 60px; padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; outline: none;">
                         </div>
                         
                         <div id="topic-barchart" style="flex: 1; min-height: 120px; display: flex; align-items: center; justify-content: center;">
