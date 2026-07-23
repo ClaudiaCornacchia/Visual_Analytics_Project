@@ -361,6 +361,11 @@
                         <strong style="color: #1f77b4; ">Click a bar to filter map!</strong>
                     </div>
                 </div>
+
+                <div style="margin-top: 10px; font-size: 0.9rem; color: #475569;">
+                        <label for="tfidf-limit">Number of keywords: <span id="tfidf-limit-val">10</span></label>
+                        <input type="range" id="tfidf-limit" min="3" max="30" value="10" style="width: 100%; cursor: pointer;">
+                </div>
                 
                 <div id="tfidf-loading" style="display: none; text-align: center; color: #f59e0b; font-size: 0.96rem; margin-top: 10px;">
                     <em>Calculating semantic weights...</em>
@@ -400,6 +405,11 @@
                                 <input type="radio" name="topicLens" value="words_operational" checked>
                                 <span style="font-weight: 600;">Stop-words and airlines</span>
                             </label>
+                        </div>
+
+                        <div style="margin-top: 10px; margin-bottom: 10px; font-size: 0.9rem; color: #475569;">
+                            <label for="bertopic-limit">Number of keywords: <span id="bertopic-limit-val">5</span></label>
+                            <input type="range" id="bertopic-limit" min="3" max="30" value="5" style="width: 100%; cursor: pointer;">
                         </div>
                         
                         <div id="topic-barchart" style="flex: 1; min-height: 120px; display: flex; align-items: center; justify-content: center;">

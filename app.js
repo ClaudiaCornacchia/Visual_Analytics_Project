@@ -1,6 +1,6 @@
 // Set up connection to Kaggle/Ngrok backend
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -60,19 +60,18 @@ const outlierTopicColor = "#d3d3d3a6";
 // Map manual labels to algorithmically generated topic IDs
 const manualTopicNames = {
     "-1": "Outliers",
-
-    "0": "Flight Cancellations",              // flight, cancelled, cancelled flightled
-    "1": "Flight Delays",                     // delayed, late, plane, flight
-    "2": "Call Center Hold Times",          // hold, phone, hours, hung
-    "3": "General Feedback",                  // flight, hold, great, good (mixed feedback)
-    "4": "Lost Luggage",            // bag, luggage, lost, bags, baggage
-    "5": "Customer Service",                  // customer, service, weather
-    "6": "Promotions",       // destinationdragons, imaginedragons, companion pass
-    "7": "Emails",            // email, appreciate, confirmation, message
-    "8": "Inflight Wi-Fi",                    // wifi, inflight wifi, slow, power
-    "9": "En Route Updates",                  // flytpa, enroute, departs, arrives
-    "10": "Corporate",          // wall, ceo, street, wall street
-    "11": "Crew Praise"                       // crew, flt, great, professionals
+    "0": "Flight Delays and Operations",      // flight, service, just, delayed, customer
+    "1": "Cancellations and Hold Times",      // hold, cancelled, flight, phone, hours
+    "2": "General Feedback",                // flight, great, hold, love, good, snow
+    "3": "Customer Service",                // service, customer, dont, just, time
+    "4": "Lost Luggage",                    // bag, luggage, bags, lost, baggage
+    "5": "Appreciation and Thanks",           // great, flight, awesome, aa, app
+    "6": "Website and Booking",               // flight, flying, love, site, website
+    "7": "Gate Service and Support",          // appreciate, gate, help, reply, awesome
+    "8": "Support Contact Channels",        // phone, customer, hold, number, email
+    "9": "Inflight Wi-Fi and Entertainment",  // wifi, inflight wifi, slow, working, entertainment
+    "10": "En Route Updates",               // flytpa, enroute, departs, arrives, icy
+    "11": "Corporate News and PR"             // wall, ceo, wall street, battles, appease
 };
 
 
@@ -1671,7 +1670,10 @@ function selectNodes(nodes, options = {}) {
         loadingText.style.display = "block";
         const selectedTexts = selectedNodesData.map(n => n.text);
 
-        postJson("/api/tfidf", { texts: selectedTexts })
+        postJson("/api/tfidf", { 
+            texts: selectedTexts,
+            top_n: parseInt(document.getElementById("tfidf-limit").value)
+        })
         .then(data => {
             loadingText.style.display = "none";
             updateTFIDFChart(data);
@@ -2411,6 +2413,35 @@ function clearKeywordHighlight() {
     drawMapCanvas();
 }
 
+// Event listener per slider TF-IDF e BERTopic
+const tfidfSlider = document.getElementById("tfidf-limit");
+const tfidfValDisplay = document.getElementById("tfidf-limit-val");
+
+tfidfSlider.addEventListener("input", (e) => {
+    tfidfValDisplay.innerText = e.target.value;
+});
+
+tfidfSlider.addEventListener("change", () => {
+    // Ricalcola se ci sono nodi selezionati
+    if (selectedNodesData.length > 5) {
+        selectNodes(selectedNodesData, { append: false, toggle: false }); 
+    }
+});
+
+const bertopicSlider = document.getElementById("bertopic-limit");
+const bertopicValDisplay = document.getElementById("bertopic-limit-val");
+
+bertopicSlider.addEventListener("input", (e) => {
+    bertopicValDisplay.innerText = e.target.value;
+});
+
+bertopicSlider.addEventListener("change", () => {
+    // Ricarica il grafico corrente usando i dati memorizzati
+    if (currentTopicWords) {
+        renderTopicBarchart(currentTopicWords); 
+    }
+});
+
 function updateTFIDFChart(data) {
     currentTfidfData = data;
     const placeholder = d3.select("#tfidf-chart em");
@@ -2642,6 +2673,9 @@ function applyTopicSelection(selectedId) {
     activeTopicSelectionId = selectedId;
     renderTopicBarchart(topicData[currentTopicLens]);
 
+    // Controlliamo se ci sono tweet attualmente selezionati sulla mappa
+    const hasSelection = selectedNodeIds.size > 0;
+
     const isSinglePointClick = interactionMode === "click" && selectionMode === "point";
 
     allNodesData.forEach(d => {
@@ -2652,7 +2686,26 @@ function applyTopicSelection(selectedId) {
         d._brushSelectedBertopicHighlight = false;
         d._keywordMatch = false; // Reset primo piano
 
+        // Nessuna selezione attiva sulla mappa
+        if (!hasSelection) {
+            if (matchesTopic) {
+                d._bertopicHighlight = true; // Mette in primo piano
+                d._opacity = highlightedNodeOpacity;
+                d._stroke = selectedNodeStrokeColor;
+                d._strokeWidth = selectedNodeStrokeWidth;
+                d._fillOverride = null; // Mantiene il colore originale
+            } else {
+                d._opacity = 0.05;
+                d._stroke = normalNodeStrokeColor;
+                d._strokeWidth = normalNodeStrokeWidth;
+                d._fillOverride = "#d9d9d9"; // Grigio per i non appartenenti
+            }
+        }
+        // C'è una selezione attiva sulla mappa
+        else {
+
         if (isSinglePointClick) {
+
             // Click Point-based: comportamento nativo isolato
             d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
             d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
@@ -2669,6 +2722,7 @@ function applyTopicSelection(selectedId) {
                     d._stroke = "#0f172a";
                     d._strokeWidth = 2.5;
                     d._keywordMatch = true; // Salgono in primo piano
+                    d._bertopicHighlight = true;
                 } else {
                     // Tweet del cluster CHE NON APPARTENGONO AL TOPIC:
                     // Mantengono il colore originale ma diventano semi-trasparenti (0.10)
@@ -2684,6 +2738,7 @@ function applyTopicSelection(selectedId) {
                 d._fillOverride = "#d9d9d9";
             }
         }
+    }
     });
    
     drawMapCanvas();
@@ -2808,8 +2863,11 @@ function renderTopicBarchart(words) {
         selectedWordFilter = null; 
         return;
     }
-    
-    
+
+    // Cut the array based on the slider
+    const limit = parseInt(document.getElementById("bertopic-limit").value);
+    const wordsToShow = words.slice(0, limit);
+
     const width = Math.max(document.getElementById("topic-barchart").clientWidth, 200);
     const height = 160;
     const margin = {top: 15, right: 20, bottom: 35, left: 75}; 
@@ -2820,11 +2878,11 @@ function renderTopicBarchart(words) {
 
    
     const x = d3.scaleLinear()
-        .domain([0, d3.max(words, d => d.weight) * 1.05]) 
+        .domain([0, d3.max(wordsToShow, d => d.weight) * 1.05]) 
         .range([margin.left, width - margin.right]);
 
     const y = d3.scaleBand()
-        .domain(words.map(d => d.word))
+        .domain(wordsToShow.map(d => d.word))
         .range([margin.top, height - margin.bottom])
         .padding(0.25); 
 
@@ -2865,7 +2923,7 @@ function renderTopicBarchart(words) {
 
 
     const bars = svg.selectAll("rect")
-        .data(words)
+        .data(wordsToShow)
         .enter()
         .append("rect")
         .attr("x", margin.left)
