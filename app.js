@@ -1,6 +1,6 @@
 // Set up connection to Kaggle/Ngrok backend
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://transdesert-overhugely-alessandra.ngrok-free.dev";
+const DEFAULT_API_BASE_URL = "https://strike-happily-lurk.ngrok-free.dev";
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -63,9 +63,9 @@ const manualTopicNames = {
     "0": "Flight Delays and Operations",      // flight, service, just, delayed, customer
     "1": "Cancellations and Hold Times",      // hold, cancelled, flight, phone, hours
     "2": "General Feedback",                // flight, great, hold, love, good, snow
-    "3": "Customer Service",                // service, customer, dont, just, time
-    "4": "Lost Luggage",                    // bag, luggage, bags, lost, baggage
-    "5": "Appreciation and Thanks",           // great, flight, awesome, aa, app
+    "3": "Customer Service & Support",                // service, customer, dont, just, time
+    "4": "Lost Luggage & Baggage Claims",                    // bag, luggage, bags, lost, baggage
+    "5": "Costumer Appreciation",           // great, flight, awesome, aa, app
     "6": "Website and Booking",               // flight, flying, love, site, website
     "7": "Gate Service and Support",          // appreciate, gate, help, reply, awesome
     "8": "Support Contact Channels",        // phone, customer, hold, number, email
@@ -432,7 +432,7 @@ function setClusterEncoding(encoding, options = {}) {
                 }
             } else {
                 nodeData._fillOverride = "#d9d9d9";
-                nodeData._opacity = 0.05;
+                nodeData._opacity = 0.25;
                 nodeData._keywordMatch = false;
             }
         });
@@ -707,11 +707,15 @@ function applySelectionVisualState() {
             node._strokeWidth = node._perturbationOutline
                 ? perturbationOutlineStrokeWidth
                 : (node._selectionAnchor ? anchorNodeStrokeWidth : getSelectedNodeStrokeWidth());
+            if (isSinglePointClick) {
+                node._strokeWidth= 10.0;
+                node._keywordMatch = true;
+            }
         } else if (node._selectionMuted) {
             // TWEET NON SELEZIONATI
             if (isSinglePointClick) {
                 node._fillOverride = null;
-                node._opacity = 0.14;
+                node._opacity = 0.20;
             } else {
                 node._fillOverride = "#d9d9d9";
                 node._opacity = 0.25;
@@ -1620,7 +1624,7 @@ function clearPerturbationState() {
 }
 
 function clearSelection(options = {}) {
-    const { resetPerturbations = false } = options;
+    const { resetPerturbations = true } = options;
     selectedNodesData = [];
     brushClusterSourceNodes = [];
     originalClickedNode = null;
@@ -2333,7 +2337,7 @@ clusterEncodingButtons.forEach(button => {
 if (btnClearSelection) {
     btnClearSelection.addEventListener("click", (event) => {
         event.stopPropagation();   
-        clearSelection();
+        clearSelection({resetPerturbations: true});
     });
 }
 
@@ -2703,7 +2707,7 @@ function applyTopicSelection(selectedId) {
                 d._strokeWidth = selectedNodeStrokeWidth;
                 d._fillOverride = null; // Mantiene il colore originale
             } else {
-                d._opacity = 0.05;
+                d._opacity = 0.25;
                 d._stroke = normalNodeStrokeColor;
                 d._strokeWidth = normalNodeStrokeWidth;
                 d._fillOverride = "#d9d9d9"; // Grigio per i non appartenenti
@@ -2715,7 +2719,7 @@ function applyTopicSelection(selectedId) {
         if (isSinglePointClick) {
 
             // Click Point-based: comportamento nativo isolato
-            d._opacity = matchesTopic ? highlightedNodeOpacity : 0.05;
+            d._opacity = matchesTopic ? highlightedNodeOpacity :0.25;
             d._stroke = matchesTopic ? selectedNodeStrokeColor : normalNodeStrokeColor;
             d._strokeWidth = matchesTopic ? selectedNodeStrokeWidth : normalNodeStrokeWidth;
             d._fillOverride = null;
@@ -2740,8 +2744,8 @@ function applyTopicSelection(selectedId) {
                     d._strokeWidth = normalNodeStrokeWidth;
                 }
             } else {
-                // Fuori dalla selezione: Grigio neutro (#d9d9d9) e opacità 0.05
-                d._opacity = 0.05;
+                // Fuori dalla selezione
+                d._opacity = 0.25;
                 d._strokeWidth = normalNodeStrokeWidth;
                 d._fillOverride = "#d9d9d9";
             }
@@ -2809,7 +2813,7 @@ fetch('bertopic_data.json')
         .duration(400) 
         .style("opacity", d => {
            
-            return d.topic_id === selectedId ? highlightedNodeOpacity : 0.05; 
+            return d.topic_id === selectedId ? highlightedNodeOpacity : 0.25; 
         })
         .style("stroke", d => d.topic_id === selectedId ? selectedNodeStrokeColor : normalNodeStrokeColor)
         .style("stroke-width", d => d.topic_id === selectedId ? selectedNodeStrokeWidth : normalNodeStrokeWidth);
@@ -2976,43 +2980,66 @@ function highlightTweetsByWord(word) {
         }
         return;
     }
-
+    const hasSelection = selectedNodeIds.size > 0;
     const lowerWordForCanvas = word.toLowerCase();
 
     allNodesData.forEach(d => {
         const textContainsWord = d.text && d.text.toLowerCase().includes(lowerWordForCanvas);
         const matchesTopic = d.topic_id === activeTopicSelectionId;
         const isInsideSelection = selectedNodeIds.has(d.id);
+        
 
         d._bertopicHighlight = false;
         d._brushSelectedBertopicHighlight = false;
         d._keywordMatch = false;
 
-        if (isSinglePointClick) {
-            d._opacity = (matchesTopic && textContainsWord) ? highlightedNodeOpacity : 0.05;
-            d._fillOverride = null;
-        } else {
-            if (isInsideSelection) {
-                if (matchesTopic && textContainsWord) {
-                    // Tweet nel cluster, del topic e CONTENGONO LA KEYWORD:
-                    // Pieni, in primo piano, bordo marcato.
-                    d._fillOverride = null;
-                    d._opacity = 1.0;
-                    d._stroke = "#0f172a";
-                    d._strokeWidth = 2.5;
-                    d._keywordMatch = true;
-                } else if (isInsideSelection) {
-                    // Tweet nel cluster ma non corrispondenti alla keyword: semi-trasparenti
-                    d._fillOverride = null;
-                    d._opacity = 0.10;
-                    d._stroke = normalNodeStrokeColor;
-                    d._strokeWidth = normalNodeStrokeWidth;
-                }
+        // 1. NESSUNA SELEZIONE SULLA MAPPA
+        if (!hasSelection) {
+            if (matchesTopic && textContainsWord) {
+                // Del topic e contiene la parola
+                d._fillOverride = null;
+                d._opacity = 1.0;
+                d._stroke = "#0f172a";
+                d._strokeWidth = 2.5;
+                d._keywordMatch = true;
+            } else if (matchesTopic && !textContainsWord) {
+                // Del topic ma NON contiene la parola
+                d._fillOverride = null;
+                d._opacity = 0.10;
+                d._stroke = normalNodeStrokeColor;
+                d._strokeWidth = normalNodeStrokeWidth;
             } else {
-                // Fuori dal cluster: Grigio neutro (#d9d9d9)
-                d._opacity = 0.05;
+                // Non fa parte del topic
+                d._opacity = 0.25;
                 d._strokeWidth = normalNodeStrokeWidth;
                 d._fillOverride = "#d9d9d9";
+            }
+        } 
+        // 2. C'È UNA SELEZIONE ATTIVA SULLA MAPPA (Brush o Cluster click)
+        else {
+            if (isSinglePointClick) {
+                d._opacity = (matchesTopic && textContainsWord) ? highlightedNodeOpacity : 0.05;
+                d._fillOverride = null;
+            } else {
+                if (isInsideSelection) {
+                    if (matchesTopic && textContainsWord) {
+                        d._fillOverride = null;
+                        d._opacity = 1.0;
+                        d._stroke = "#0f172a";
+                        d._strokeWidth = 2.5;
+                        d._keywordMatch = true;
+                    } else {
+                        d._fillOverride = null;
+                        d._opacity = 0.10;
+                        d._stroke = normalNodeStrokeColor;
+                        d._strokeWidth = normalNodeStrokeWidth;
+                    }
+                } else {
+                    // Fuori dal cluster
+                    d._opacity = 0.25;
+                    d._strokeWidth = normalNodeStrokeWidth;
+                    d._fillOverride = "#d9d9d9";
+                }
             }
         }
     });
