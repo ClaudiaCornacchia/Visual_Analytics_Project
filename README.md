@@ -44,9 +44,8 @@ To avoid recomputing embeddings and other processed files every time, save them 
 - `tweets` file
 - `embeddings/` folder containing:
   - `base_map.csv`
-  - `umap_mapper.joblib` (note: using UMAP, not PCA)
+  - `umap_mapper.joblib` (note: using UMAP)
 
-> **Important:** When changing the embedding model or dimensionality reduction technique, allow the code to recompute once. The file will be named `umap_mapper.joblib` (not PCA).
 
 ### Important Reminders
 
