@@ -3,7 +3,7 @@
 ## Repository Setup & Configuration
 
 ### Ngrok Configuration
-#### Eduroam blocca ngrok !!!
+#### Il wifi di Eduroam blocca ngrok
 
 #### Step 1: Get Your Ngrok Token
 1. Go to [ngrok.com](https://ngrok.com) and sign in (or create a free account)
@@ -44,9 +44,8 @@ To avoid recomputing embeddings and other processed files every time, save them 
 - `tweets` file
 - `embeddings/` folder containing:
   - `base_map.csv`
-  - `umap_mapper.joblib` (note: using UMAP, not PCA)
+  - `umap_mapper.joblib` (note: using UMAP)
 
-> **Important:** When changing the embedding model or dimensionality reduction technique, allow the code to recompute once. The file will be named `umap_mapper.joblib` (not PCA).
 
 ### Important Reminders
 
