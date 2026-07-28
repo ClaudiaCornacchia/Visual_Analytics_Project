@@ -60,18 +60,18 @@ const outlierTopicColor = "#d3d3d3a6";
 // Map manual labels to algorithmically generated topic IDs
 const manualTopicNames = {
     "-1": "Outliers",
-    "0": "Flight Delays and Operations",      // flight, service, just, delayed, customer
+    "0": "Flight Delays and Complaints",      // flight, service, just, delayed, customer
     "1": "Cancellations and Hold Times",      // hold, cancelled, flight, phone, hours
     "2": "General Feedback",                // flight, great, hold, love, good, snow
-    "3": "Customer Service & Support",                // service, customer, dont, just, time
-    "4": "Lost Luggage & Baggage Claims",                    // bag, luggage, bags, lost, baggage
+    "3": "Customer Service and Support",                // service, customer, dont, just, time
+    "4": "Lost Luggage and Baggage Claims",                    // bag, luggage, bags, lost, baggage
     "5": "Costumer Appreciation",           // great, flight, awesome, aa, app
     "6": "Website and Booking",               // flight, flying, love, site, website
     "7": "Gate Service and Support",          // appreciate, gate, help, reply, awesome
     "8": "Support Contact Channels",        // phone, customer, hold, number, email
     "9": "Inflight Wi-Fi and Entertainment",  // wifi, inflight wifi, slow, working, entertainment
     "10": "En Route Updates",               // flytpa, enroute, departs, arrives, icy
-    "11": "Corporate News and PR"             // wall, ceo, wall street, battles, appease
+    "11": "Corporate News"             // wall, ceo, wall street, battles, appease
 };
 
 
@@ -706,7 +706,7 @@ function applySelectionVisualState() {
             node._stroke = node._selectionAnchor ? getDynamicAnchorStrokeColor(node) : selectedNodeStrokeColor;
             node._strokeWidth = node._perturbationOutline
                 ? perturbationOutlineStrokeWidth
-                : (node._selectionAnchor ? anchorNodeStrokeWidth : getSelectedNodeStrokeWidth());
+                : getSelectedNodeStrokeWidth();
             if (isSinglePointClick) {
                 node._strokeWidth= 10.0;
                 node._keywordMatch = true;
