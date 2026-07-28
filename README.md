@@ -3,7 +3,7 @@
 ## Repository Setup & Configuration
 
 ### Ngrok Configuration
-#### Eduroam blocca ngrok !!!
+#### Il wifi di Eduroam blocca ngrok
 
 #### Step 1: Get Your Ngrok Token
 1. Go to [ngrok.com](https://ngrok.com) and sign in (or create a free account)
