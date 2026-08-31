@@ -11,7 +11,15 @@
         /* Layout Principale */
         #scatterplot-container { position: relative; width: 65vw; height: 100vh; padding: 8px 14px 14px; display: flex; flex-direction: column; gap: 6px; background: #e2e8f0; border-right: 2px solid #cbd5e1; }
         #map-panel { position: relative; flex: 1 1 auto; min-height: 0; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        #details-panel { width: 35vw; height: 100vh; padding: 15px; background: #e2e8f0; overflow-y: hidden; }
+        #details-panel {     width: 35vw;
+            height: 100vh;
+            padding: 15px;
+            background: #e2e8f0;
+            overflow: hidden;
+
+            display: flex;
+            flex-direction: column;
+        }
 
         /* Titoli di sezione */
         h2 { font-size: 1.3rem; margin-top: 0; margin-bottom: 15px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -20,7 +28,14 @@
         /* Stile Schede */
         .card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         #selection-inspector-toggle,
-        #selection-inspector-card { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); padding: 12px; margin: 0 0 12px; }
+        #selection-inspector-card {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+
+            display: flex;
+            flex-direction: column;
+        }
         #selection-inspector-toggle .card-title,
         #selection-inspector-card .card-title { padding-bottom: 6px; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; color: #334155; }
         #selection-inspector-toggle .toggle-card-btn,
@@ -39,6 +54,48 @@
             padding: 0;
             margin: 0 0 16px 0;
         }
+
+        #selection-inspector-card > div:first-child,
+        #selection-inspector-card > div:first-child > div {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        #selection-inspector-card > div:first-child {
+            width: 100%;
+            align-items: stretch !important;
+            margin-bottom: 0 !important;
+            overflow: hidden;
+        }
+
+        #selection-inspector-card > div:first-child > div {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        #selection-inspector-tabs {
+            flex: 0 0 auto;
+            position: relative;
+            z-index: 2;
+            background: #f8fafc;
+        }
+
+        #tfidf-panel,
+        #bertopic-card {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #tfidf-panel { flex: 0 1 auto; flex-direction: column; }
+        #tfidf-chart { flex: 0 0 auto; min-height: 0 !important; overflow: hidden; }
+        #tfidf-panel.dense-keywords { padding-top: 8px; }
+        #tfidf-panel.dense-keywords .card-title { margin-bottom: 2px; padding-bottom: 2px; }
+        #tfidf-panel.dense-keywords .card-title + div { margin-top: 4px !important; }
+        #tfidf-panel.dense-keywords #tfidf-chart { margin-top: 6px !important; }
+        #topic-barchart { flex: 0 1 auto !important; min-height: 0 !important; overflow: hidden; align-items: stretch !important; justify-content: flex-start !important; }
+        #tfidf-chart svg,
+        #topic-barchart svg { display: block; width: 100%; }
 
         #selection-inspector-card > .card .card-title {
             padding-bottom: 0;
@@ -179,8 +236,9 @@
        
         #bertopic-card { display: flex; flex-direction: column; }
         .bertopic-row { display: flex; gap: 15px; margin-top: 10px; flex: 1 1 auto; min-height: 140px; }
-        .bertopic-left { flex: 0 0 auto; border-right: 1px solid #e2e8f0; padding-right: 15px; display: flex; flex-direction: column; min-height: 0; }
-        #topic-selector { flex: 1 1 auto; min-height: 0; height: 100%; overflow: auto; }
+        .bertopic-left { flex: 0 0 auto; align-self: flex-start; border-right: 1px solid #e2e8f0; padding-right: 15px; display: flex; flex-direction: column; min-height: 0; }
+        #topic-selector { flex: 0 0 auto; min-height: 0; height: auto; overflow: hidden; font-size: 0.82rem; }
+        #topic-selector option { padding: 5px 6px; line-height: 1.45; }
 
 
     </style>
@@ -247,7 +305,7 @@
             </div>
             <div id="original-text-block" style="margin-bottom: 10px;">
                 <div style="font-size: 0.8rem; font-weight: 700; color: #475569; margin-bottom: 4px; text-transform: uppercase;">Original Text</div>
-                <div id="tw-text-simple" style="font-size: 15px; line-height: 1.7; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px; color: #334155;">Select a point on the map to see token weights...</div>
+                <div id="tw-text-simple" style="font-size: 15px; line-height: 1.7; background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; min-height: 60px; color: #334155;">Select a point on the map to see word weights...</div>
             </div>
             <div class="selection-summary">
                 
@@ -277,7 +335,7 @@
         <div class="card" id="token-analysis-perturbation-card">
             <div class="card-title" style="display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
-                    <span>TOKEN ANALYSIS & PERTURBATION</span>
+                    <span>WORD ANALYSIS & PERTURBATION</span>
                     <div style="font-size: 0.95rem; color: #64748b; font-weight: normal; margin-top: 2px;">
                         Click a word in the heatmap to select it as a perturbation target
                     </div>
@@ -345,20 +403,32 @@
 
         <div class="card" id="selection-inspector-card" style="display:none;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-                <div class="card-title" style="margin-bottom: 0;">SELECT PANEL</div>
-                <div style="display:flex; gap: 8px; margin-left:auto;">
-                    <button id="toggle-tfidf" class="toggle-card-btn active" type="button">TF-IDF</button>
-                    <button id="toggle-bertopic" class="toggle-card-btn" type="button">BERTopic</button>
-                </div>
-            </div>
+            
+           <div style="display: flex; flex-direction: column; width: 100%;">
+
+    <!-- BOTTONI IN ALTO -->
+    <div id="selection-inspector-tabs" style="display: flex; gap: 8px; width: 100%; margin-bottom: 10px;">
+        <button id="toggle-tfidf"
+                class="toggle-card-btn active"
+                type="button"
+                style="flex: 1;">
+            TF-IDF
+        </button>
+
+        <button id="toggle-bertopic"
+                class="toggle-card-btn"
+                type="button"
+                style="flex: 1;">
+            BERTopic
+        </button>
+    </div>
 
             <div class="card" id="tfidf-panel" >
                 <div class="card-title">
                     <span>CLUSTER KEYWORDS (TF-IDF)</span>
                     <div class="legend-box" style="font-size: 0.75rem; margin-top: 0px;">
-                        SCORE MEANING:<br>
-                        Longer Bar = Highly distinctive<br>
-                        <strong style="color: #1f77b4; ">Click a bar to filter map!</strong>
+                        
+                        <strong style="color: #1f77b4; ">Click a bar to filter the map</strong>
                     </div>
                 </div>
 
