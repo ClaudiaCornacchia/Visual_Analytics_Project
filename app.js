@@ -401,13 +401,20 @@ function reapplySelectionMode() {
 }
 
 function setClusterEncoding(encoding, options = {}) {
-    const { clearSelectionOnChange = false } = options;
+    const {
+        clearSelectionOnChange = false,
+        preserveBrushClusterOnChange = true
+    } = options;
+    const preserveBrushClusterSelection = preserveBrushClusterOnChange
+        && interactionMode === "brush"
+        && selectionMode === "cluster"
+        && selectedNodesData.length > 0;
     const encodingChanged = currentColorEncoding !== encoding;
     currentColorEncoding = encoding;
     updateOutlierToggleVisibility();
     if (encodingChanged) {
         clearPerturbationState();
-        if (clearSelectionOnChange && selectedNodesData.length) {
+        if (clearSelectionOnChange && selectedNodesData.length && !preserveBrushClusterSelection) {
             clearSelection({ resetPerturbations: true });
         }
     }
@@ -442,11 +449,14 @@ function setClusterEncoding(encoding, options = {}) {
         applySelectionVisualState();
     }
     updateNodeColors();
+    keepAxesVisible(d3.zoomTransform(svg.node()));
     renderMapLegends(selectedNodesData);
 
     if (selectionMode === "cluster" && selectedNodesData.length) {
-        reapplySelectionMode();
-        return;
+        if (!preserveBrushClusterSelection) {
+            reapplySelectionMode();
+            return;
+        }
     }
 
     renderSelectionDistributionChart(selectedNodesData);
@@ -517,7 +527,7 @@ function keepAxesVisible(transform = d3.zoomTransform(svg.node())) {
 
     svg.select("#umap-x-label")
         .attr("x", width / 2)
-        .attr("y", height - mapMargin.bottom + 60);
+        .attr("y", height - mapMargin.bottom + (currentColorEncoding === "topic" ? 48 : 60));
 
     svg.select("#umap-y-label")
         .attr("x", -height / 2)
@@ -737,7 +747,13 @@ function drawCanvasNode(node, transform, forceHighlight = false) {
     const x = transform.applyX(position.x);
     const y = transform.applyY(position.y);
     const radius = Math.max(1.2, canvasNodeRadius * transform.k);
-    const opacity = forceHighlight ? (node._opacity ?? highlightedNodeOpacity) : (node._opacity ?? normalNodeOpacity);
+    const isSelectedVisibleOutlier = currentColorEncoding === "topic"
+        && hideOutliers
+        && node.topic_id === -1
+        && selectedNodeIds.has(node.id);
+    const opacity = isSelectedVisibleOutlier
+        ? highlightedNodeOpacity
+        : (forceHighlight ? (node._opacity ?? highlightedNodeOpacity) : (node._opacity ?? normalNodeOpacity));
     const stroke = forceHighlight
         ? (node._brushSelectedBertopicHighlight ? (node._stroke ?? getBertopicStrokeColor(node)) : (node._bertopicHighlight ? (node._stroke ?? getBertopicStrokeColor(node)) : (node._brushSelectedKeywordHighlight ? (node._stroke ?? getBrushSelectedKeywordStrokeColor(node)) : (node._keywordHighlight ? keywordHighlightColor : (node._stroke ?? selectedNodeStrokeColor)))))
         : (node._stroke ?? normalNodeStrokeColor);
@@ -774,11 +790,12 @@ function drawMapCanvas() {
     const isTopicView = currentColorEncoding === "topic";
 
     allNodesData.forEach(node => {
-        if (isTopicView && hideOutliers && node.topic_id === -1) {
+        const isSelectedNode = selectedNodeIds.has(node.id) || node._selected;
+        if (isTopicView && hideOutliers && node.topic_id === -1 && !isSelectedNode) {
             return;
         }
 
-        if (node._selected || node._keywordHighlight || node._bertopicHighlight || node._keywordMatch) {
+        if (isSelectedNode || node._keywordHighlight || node._bertopicHighlight || node._keywordMatch) {
             highlightedNodes.push(node);
             return;
         }
@@ -1374,6 +1391,7 @@ function renderSelectionDistributionChart(nodes) {
     const indicator = d3.select("#selection-cluster-indicator");
     container.html("");
 
+    // CLICK MODE + POINT BASED
     if (interactionMode === "click" && selectionMode === "point") {
         indicator.style("display", "flex");
         container.style("display", "none");
@@ -1383,21 +1401,52 @@ function renderSelectionDistributionChart(nodes) {
     indicator.style("display", "none");
     container.style("display", null);
 
+    // NO SELECTION
     if (!nodes.length) {
         topicDistributionTooltip.style("opacity", 0);
+
+        let placeholderMessage = "";
+
+        // BRUSH MODE + POINT BASED
+        if (interactionMode === "brush" && selectionMode === "point") {
+            placeholderMessage =
+                "Select one or more points to see the selection distribution.";
+        }
+
+        // CLICK MODE + CLUSTER BASED
+        else if (interactionMode === "click" && selectionMode === "cluster") {
+            placeholderMessage =
+                "Click a point to see the corresponding cluster.";
+        }
+
+        // BRUSH MODE + CLUSTER BASED
+        else if (interactionMode === "brush" && selectionMode === "cluster") {
+            placeholderMessage =
+                "Brush an area to view the dominant cluster.";
+        }
+
         container
             .attr("class", "chart-placeholder")
-            .html("<em>Select one or more points to see the selection distribution.</em>");
+            .html(`<em>${placeholderMessage}</em>`);
+
         return;
     }
 
     container.attr("class", "");
 
+    // BRUSH + CLUSTER BASED: stessa distribuzione della selezione Brush + Point.
+    if (interactionMode === "brush" && selectionMode === "cluster") {
+        renderSelectionVerticalBarChart(container, nodes);
+        return;
+    }
+
+    // CLICK + CLUSTER BASED
     if (selectionMode === "cluster") {
         renderBrushClusterSummary(container, nodes);
         return;
     }
 
+    // BRUSH MODE + POINT BASED
     if (interactionMode === "brush" && selectionMode === "point") {
         renderSelectionVerticalBarChart(container, nodes);
         return;
@@ -1452,7 +1501,7 @@ function updateSelectionClusterIndicator() {
     const titleCaseEncoding = currentColorEncoding.charAt(0).toUpperCase() + currentColorEncoding.slice(1);
     if (selectedNodesData.length !== 1) {
         swatch.style.background = "#cbd5e1";
-        text.textContent = `Click a point to select a tweet and view ${titleCaseEncoding} cluster details.`;
+        text.textContent = `Click a point to select a tweet`;
         return;
     }
 
@@ -1541,8 +1590,8 @@ function updateSelectionUI() {
         document.getElementById("tw-sentiment").innerText = "-";
         document.getElementById("tw-airline").innerText = "-";
         document.getElementById("tw-topic").innerText = "-";
-        document.getElementById("tw-text-simple").innerText = "Select a point on the map to see token weights...";
-        document.getElementById("tw-text").innerText = "Select a point on the map to see token weights...";
+        document.getElementById("tw-text-simple").innerText = "Select a point on the map to see word weights...";
+        document.getElementById("tw-text").innerText = "Select a point on the map to see word weights...";
         d3.select("#heatmap-container").html("<em>Select a single tweet to view heatmap.</em>");
         updatePerturbationButtonState(); 
         return;
@@ -1554,8 +1603,8 @@ function updateSelectionUI() {
         document.getElementById("tw-sentiment").innerText = "Mixed";
         document.getElementById("tw-airline").innerText = "Mixed";
         document.getElementById("tw-topic").innerText = "Mixed";
-        document.getElementById("tw-text-simple").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
-        document.getElementById("tw-text").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect token weights.</em>`;
+        document.getElementById("tw-text-simple").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect word weights.</em>`;
+        document.getElementById("tw-text").innerHTML = `<em>${selectedNodesData.length} tweets selected. Use Zoom Selection or Center Selection to navigate the map, or click a single point to inspect word weights.</em>`;
         d3.select("#heatmap-container").html("<em>Heatmap available for a single selected tweet.</em>");
         updatePerturbationButtonState(); 
         return;
@@ -1593,7 +1642,7 @@ function showPerturbedTweetDetails(visualNode) {
     document.getElementById("tw-sentiment").innerText = visualNode.sentiment;
     document.getElementById("tw-airline").innerText = getNodeAirlineLabel(visualNode);
     document.getElementById("tw-topic").innerText = getNodeTopicLabel(visualNode);
-    d3.select("#heatmap-container").html("<em>Token analysis is shown for the perturbed tweet.</em>");
+    d3.select("#heatmap-container").html("<em>Word analysis is shown for the perturbed tweet.</em>");
 
     activePerturbationKey = result.key;
     renderPerturbationCarousel();
@@ -1759,7 +1808,7 @@ function updatePanelVisibility() {
     const showInspector = !(interactionMode === "click" && selectionMode === "point");
 
     if (inspectorCard) {
-        inspectorCard.style.display = showInspector ? "block" : "none";
+        inspectorCard.style.display = showInspector ? "flex" : "none";
     }
 
     if (interactionMode === "click" && selectionMode === "point") {
@@ -1768,8 +1817,8 @@ function updatePanelVisibility() {
         if (bertopicPanel) bertopicPanel.style.display = "none";
     } else {
         if (tokenPanel) tokenPanel.style.display = "none";
-        if (tfidfPanel) tfidfPanel.style.display = activeSelectionInspector === "tfidf" ? "block" : "none";
-        if (bertopicPanel) bertopicPanel.style.display = activeSelectionInspector === "bertopic" ? "block" : "none";
+        if (tfidfPanel) tfidfPanel.style.display = activeSelectionInspector === "tfidf" ? "flex" : "none";
+        if (bertopicPanel) bertopicPanel.style.display = activeSelectionInspector === "bertopic" ? "flex" : "none";
     }
 
     renderSelectionInspectorToggle();
@@ -1980,7 +2029,10 @@ d3.csv("base_map.csv", function (d) {
 
     colorEncodingSelect.addEventListener("change", event => {
         const shouldResetView = interactionMode === "brush" && selectionMode === "point";
-        setClusterEncoding(event.target.value, { clearSelectionOnChange: true });
+        setClusterEncoding(event.target.value, {
+            clearSelectionOnChange: true,
+            preserveBrushClusterOnChange: false
+        });
         if (shouldResetView) {
             applyZoomTransform(d3.zoomIdentity, 320);
         }
@@ -2001,12 +2053,12 @@ function renderTokenAnalysis(text) {
     d3.select("#tw-text-simple").text(text);
     
     const container = d3.select("#tw-text");
-    container.html("<em style='color: #64748b;'>Calculating token ablation weights...</em>");
+    container.html("<em style='color: #64748b;'>Calculating word ablation weights...</em>");
 
     postJson("/api/token_weights", { text })
         .then(data => {
             if (!Array.isArray(data) || data.length === 0) {
-                container.html("<em style='color: #ef4444;'>No token data available for this text.</em>");
+                container.html("<em style='color: #ef4444;'>No word data available for this text.</em>");
                 return;
             }
 
@@ -2077,7 +2129,7 @@ function renderTokenAnalysis(text) {
 
                 container.append("span")
                     .attr("class", "token")
-                    .attr("title", `Impact Score: ${item.weight.toFixed(3)}`)
+                    .attr("title", `Word weight: ${item.weight.toFixed(3)}`)
                     .style("background-color", bg)
                     .style("color", fg)
                     .style("padding", "0 6px")
@@ -2114,8 +2166,8 @@ function renderTokenAnalysis(text) {
             });
         })
         .catch(err => {
-            console.error("Token weight error:", err);
-            container.html(`<em style='color: #ef4444;'>Error loading token weights.</em><br><small>${err.message}</small>`);
+            console.error("Word weight error:", err);
+            container.html(`<em style='color: #ef4444;'>Error loading word weights.</em><br><small>${err.message}</small>`);
             if (typeof updatePerturbationButtonState === "function") {
                 updatePerturbationButtonState(); 
             }
@@ -2370,15 +2422,14 @@ if (btnMapNavigation) {
 if (btnPanSelection) {
     btnPanSelection.addEventListener("click", () => {
         centerSelectionInView(selectedNodesData);
-        setCenterButtonEnabled(false);
     });
 }
 
 
-const tfMargin = {top: 20, right: 30, bottom: 40, left: 100};
+let tfMargin = {top: 8, right: 20, bottom: 44, left: 82};
 const tfContainer = document.getElementById('tfidf-panel');
 let tfWidth = Math.max(tfContainer.clientWidth - 20, 300); 
-const tfHeight = 300;
+let tfHeight = 300;
 
 const tfSvg = d3.select("#tfidf-chart")
     .append("svg")
@@ -2390,7 +2441,8 @@ const tfSvg = d3.select("#tfidf-chart")
     .attr("transform", `translate(${tfMargin.left},${tfMargin.top})`);
 
 let tfInnerWidth = tfWidth - tfMargin.left - tfMargin.right;
-const tfInnerHeight = tfHeight - tfMargin.top - tfMargin.bottom;
+let tfInnerHeight = tfHeight - tfMargin.top - tfMargin.bottom;
+let tfPlotHeight = tfInnerHeight;
 
 const tfYScale = d3.scaleBand().range([0, tfInnerHeight]).padding(0.2);
 let tfXScale = d3.scaleLinear().range([0, tfInnerWidth]);
@@ -2465,6 +2517,8 @@ function updateTFIDFChart(data) {
         data = data.map(d => ({ word: d[0], score: d[1] }));
     }
 
+    tfContainer.classList.toggle("dense-keywords", Array.isArray(data) && data.length >= 25);
+
 
     if (!data || data.length === 0) {
         tfSvg.selectAll(".tfidf-bar").remove();
@@ -2473,7 +2527,6 @@ function updateTFIDFChart(data) {
         clearKeywordHighlight();
         
         placeholder.style("display", "block").text("Select a tweet or more to see the keywords.");
-        document.getElementById("tfidf-chart").style.minHeight = "40px";
         d3.select("#tfidf-chart svg").style("display", "none");
         
         return;
@@ -2481,19 +2534,49 @@ function updateTFIDFChart(data) {
 
 
     placeholder.style("display", "none");
-    document.getElementById("tfidf-chart").style.minHeight = "250px";
     d3.select("#tfidf-chart svg").style("display", "block");
 
-
-    if (tfContainer.clientWidth > 0) {
-        tfWidth = Math.max(tfContainer.clientWidth, 300) - 20;
+    const tfChartElement = document.getElementById("tfidf-chart");
+    if (tfChartElement.clientWidth > 0 && tfChartElement.clientHeight > 0) {
+        tfWidth = Math.max(tfChartElement.clientWidth, 260);
+        const longestKeywordLength = d3.max(data, d => String(d.word || "").length) || 0;
+        const dynamicLeftMargin = Math.min(
+            tfWidth * 0.42,
+            Math.max(82, longestKeywordLength * 9 + 16)
+        );
+        tfMargin = { top: 8, right: 20, bottom: 44, left: dynamicLeftMargin };
+        const inspectorColumn = tfContainer.parentElement;
+        const inspectorTabs = document.getElementById("selection-inspector-tabs");
+        const availablePanelHeight = inspectorColumn
+            ? inspectorColumn.clientHeight - (inspectorTabs?.offsetHeight || 0) - 10
+            : tfContainer.clientHeight;
+        const chartTopInsidePanel = Math.max(
+            0,
+            tfChartElement.getBoundingClientRect().top - tfContainer.getBoundingClientRect().top
+        );
+        const availableChartHeight = Math.max(
+            94,
+            availablePanelHeight - chartTopInsidePanel - 15
+        );
+        const maximumPlotHeight = Math.max(
+            42,
+            availableChartHeight - tfMargin.top - tfMargin.bottom
+        );
+        tfPlotHeight = Math.min(Math.max(data.length * 42, 42), maximumPlotHeight);
+        tfHeight = tfMargin.top + tfPlotHeight + tfMargin.bottom;
+        tfChartElement.style.height = `${tfHeight}px`;
         tfInnerWidth = Math.max(tfWidth - tfMargin.left - tfMargin.right, 10);
+        tfInnerHeight = tfPlotHeight;
         
         d3.select("#tfidf-chart svg")
             .attr("width", tfWidth)
+            .attr("height", tfHeight)
             .attr("viewBox", `0 0 ${tfWidth} ${tfHeight}`);
-            
+
+        tfSvg.attr("transform", `translate(${tfMargin.left},${tfMargin.top})`);
         tfXScale.range([0, tfInnerWidth]);
+        tfYScale.range([0, tfPlotHeight]);
+        tfXAxisGroup.attr("transform", `translate(0,${tfPlotHeight})`);
     }
 
     const getScore = d => d.score !== undefined ? d.score : (d.weight || 0);
@@ -2502,8 +2585,11 @@ function updateTFIDFChart(data) {
     tfXScale.domain([0, d3.max(data, getScore) || 1]);
 
   
+    const tfFontSize = Math.max(13, Math.min(18, tfYScale.bandwidth() * 0.6));
     tfYAxisGroup.transition().duration(500).call(d3.axisLeft(tfYScale));
     tfXAxisGroup.transition().duration(500).call(d3.axisBottom(tfXScale).ticks(5));
+    tfYAxisGroup.selectAll("text").style("font-size", `${tfFontSize}px`);
+    tfXAxisGroup.selectAll("text").style("font-size", `${Math.max(11, tfFontSize * 0.85)}px`);
 
 
     let xAxisLabel = tfSvg.selectAll(".tfidf-x-label").data([0]);
@@ -2513,9 +2599,9 @@ function updateTFIDFChart(data) {
         .merge(xAxisLabel)
         .transition().duration(500)
         .attr("x", tfInnerWidth)
-        .attr("y", tfInnerHeight + 35) 
+        .attr("y", tfPlotHeight + 38) 
         .attr("text-anchor", "end")
-        .style("font-size", "11px")
+        .style("font-size", `${Math.max(11, tfFontSize * 0.9)}px`)
         .style("font-weight", "600")
         .style("fill", "#475569")
         .text("TF-IDF Score");
@@ -2533,8 +2619,8 @@ function updateTFIDFChart(data) {
     const barsEnter = bars.enter()
         .append("rect")
         .attr("class", "tfidf-bar")
-        .attr("y", d => tfYScale(d.word))
-        .attr("height", tfYScale.bandwidth())
+        .attr("y", d => tfYScale(d.word) + Math.max(0, (tfYScale.bandwidth() - 30) / 2))
+        .attr("height", Math.min(tfYScale.bandwidth(), 30))
         .attr("x", 0)
         .attr("width", 0) 
         .attr("fill", "#3b82f6"); 
@@ -2542,8 +2628,8 @@ function updateTFIDFChart(data) {
  
     barsEnter.merge(bars)
         .transition().duration(500)
-        .attr("y", d => tfYScale(d.word))
-        .attr("height", tfYScale.bandwidth())
+        .attr("y", d => tfYScale(d.word) + Math.max(0, (tfYScale.bandwidth() - 30) / 2))
+        .attr("height", Math.min(tfYScale.bandwidth(), 30))
         .attr("width", d => Math.max(0, tfXScale(getScore(d))));
 
     barsEnter.merge(bars).on("click", function(event, d) {
@@ -2801,6 +2887,7 @@ fetch('bertopic_data.json')
             .attr("value", topic.id)
             .text(`${getTopicDisplayName(topic.id, topic.words_operational)} (${topic.count} tweets)`);
     });
+    selector.attr("size", Math.max(1, allTopicsData.length));
 
    
     selector.on("change", function() {
@@ -2881,32 +2968,75 @@ function renderTopicBarchart(words) {
     const limit = limitInput ? parseInt(limitInput.value, 10) : 10;
     const wordsToShow = words.slice(0, limit);
 
-    const width = Math.max(document.getElementById("topic-barchart").clientWidth, 200);
-    const height = 160;
-    const margin = {top: 15, right: 20, bottom: 35, left: 75}; 
+    const chartElement = document.getElementById("topic-barchart");
+    const width = Math.max(chartElement.clientWidth, 200);
+    const topicChartColumn = chartElement.parentElement;
+    const chartTopInsideColumn = topicChartColumn
+        ? Math.max(0, chartElement.getBoundingClientRect().top - topicChartColumn.getBoundingClientRect().top)
+        : 0;
+    const availableHeight = Math.max(
+        160,
+        topicChartColumn
+            ? topicChartColumn.clientHeight - chartTopInsideColumn
+            : chartElement.clientHeight
+    );
+    const margin = {
+        top: 8,
+        right: 28,
+        bottom: 46,
+        left: 70
+    };
+    const maximumTopicPlotHeight = Math.max(42, availableHeight - margin.top - margin.bottom);
+    const desiredTopicPlotHeight = Math.max(42, wordsToShow.length * 42);
+    const topicPlotHeight = Math.min(desiredTopicPlotHeight, maximumTopicPlotHeight);
+    const height = topicPlotHeight + margin.top + margin.bottom;
+    let labelFontSize = Math.max(11, Math.min(15, topicPlotHeight / wordsToShow.length * 0.5));
+    const labelMeasureContext = document.createElement("canvas").getContext("2d");
+    labelMeasureContext.font = `500 ${labelFontSize}px "Segoe UI", sans-serif`;
+    let longestTopicLabelWidth = d3.max(
+        wordsToShow,
+        d => labelMeasureContext.measureText(String(d.word || "")).width
+    ) || 0;
+    const preferredLabelWidth = Math.max(56, width * 0.58 - 14);
+    if (longestTopicLabelWidth > preferredLabelWidth) {
+        labelFontSize = Math.max(8, labelFontSize * preferredLabelWidth / longestTopicLabelWidth);
+        labelMeasureContext.font = `500 ${labelFontSize}px "Segoe UI", sans-serif`;
+        longestTopicLabelWidth = d3.max(
+            wordsToShow,
+            d => labelMeasureContext.measureText(String(d.word || "")).width
+        ) || 0;
+    }
+    margin.left = Math.min(width - 65, Math.max(70, longestTopicLabelWidth + 14));
+    const topicAxisWidth = Math.max(1, width - margin.left - margin.right);
 
     const svg = container.append("svg")
         .attr("width", width)
-        .attr("height", height);
+        .attr("height", height)
+        .attr("viewBox", `0 0 ${width} ${height}`)
+        .attr("preserveAspectRatio", "none");
 
    
+    const topicDomainMax = d3.max(wordsToShow, d => d.weight) * 1.05;
     const x = d3.scaleLinear()
-        .domain([0, d3.max(wordsToShow, d => d.weight) * 1.05]) 
+        .domain([0, topicDomainMax]) 
         .range([margin.left, width - margin.right]);
+    const topicTickValues = d3.range(5).map(index => topicDomainMax * index / 4);
+    const topicTickFontSize = Math.max(9, Math.min(11, topicAxisWidth / 28));
 
     const y = d3.scaleBand()
         .domain(wordsToShow.map(d => d.word))
-        .range([margin.top, height - margin.bottom])
+        .range([margin.top, margin.top + topicPlotHeight])
         .padding(0.25); 
 
    
     svg.append("g")
-        svg.append("g")
+        .attr("class", "x-axis")
         .attr("transform", `translate(0, ${height - margin.bottom})`)
         
-        .call(d3.axisBottom(x).ticks(4).tickFormat(d3.format(".3f"))) 
+        .call(d3.axisBottom(x).tickValues(topicTickValues).tickFormat(d3.format(".3f"))) 
         .selectAll("text")
-        .style("font-size", "11px")     
+        .style("font-size", `${topicTickFontSize}px`)
+        .attr("text-anchor", (d, index) => index === 0 ? "start" : (index === topicTickValues.length - 1 ? "end" : "middle"))
         .style("fill", "#475569")        
         .style("font-weight", "500");
 
@@ -2916,9 +3046,9 @@ function renderTopicBarchart(words) {
     
     svg.append("text")
         .attr("x", width - margin.right)
-        .attr("y", height - 8)         
+        .attr("y", height - 7)         
         .attr("text-anchor", "end")
-        .style("font-size", "11px")      
+        .style("font-size", `${Math.max(11, labelFontSize * 0.9)}px`)      
         .style("font-weight", "600")    
         .style("fill", "#000000")        
         .text("c-TF-IDF score");
@@ -2927,7 +3057,7 @@ function renderTopicBarchart(words) {
         .attr("transform", `translate(${margin.left},0)`)
         .call(d3.axisLeft(y).tickSize(0)) 
         .selectAll("text")
-        .style("font-size", "12px")      
+        .style("font-size", `${labelFontSize}px`)      
         .style("font-weight", "500")
         .style("fill", "#1e293b");      
 
@@ -2940,9 +3070,9 @@ function renderTopicBarchart(words) {
         .enter()
         .append("rect")
         .attr("x", margin.left)
-        .attr("y", d => y(d.word))
+        .attr("y", d => y(d.word) + Math.max(0, (y.bandwidth() - 28) / 2))
         .attr("width", d => x(d.weight) - margin.left)
-        .attr("height", y.bandwidth())
+        .attr("height", Math.min(y.bandwidth(), 28))
         .attr("cursor", "pointer") 
         .attr("fill", d => (selectedWordFilter === d.word) ? "#1d4ed8" : "#3b82f6") 
         .attr("rx", 3); 
@@ -2968,6 +3098,27 @@ function renderTopicBarchart(words) {
         highlightTweetsByWord(selectedWordFilter);
     });
 }
+
+// Mantiene entrambi i grafici proporzionati allo spazio verticale disponibile.
+let inspectorResizeFrame = null;
+const inspectorResizeObserver = new ResizeObserver(() => {
+    cancelAnimationFrame(inspectorResizeFrame);
+    inspectorResizeFrame = requestAnimationFrame(() => {
+        if (activeSelectionInspector === "tfidf" && currentTfidfData) {
+            updateTFIDFChart(currentTfidfData);
+        } else if (activeSelectionInspector === "bertopic" && currentTopicWords) {
+            renderTopicBarchart(currentTopicWords);
+        }
+    });
+});
+
+[
+    document.getElementById("selection-inspector-card"),
+    document.getElementById("tfidf-chart"),
+    document.getElementById("topic-barchart")
+]
+    .filter(Boolean)
+    .forEach(element => inspectorResizeObserver.observe(element));
 
 function highlightTweetsByWord(word) {
     selectedWordFilter = word;
