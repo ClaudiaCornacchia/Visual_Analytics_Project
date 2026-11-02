@@ -89,6 +89,10 @@
 
         #tfidf-panel { flex: 0 1 auto; flex-direction: column; }
         #tfidf-chart { flex: 0 0 auto; min-height: 0 !important; overflow: hidden; }
+        #tfidf-panel.dense-keywords { padding-top: 8px; }
+        #tfidf-panel.dense-keywords .card-title { margin-bottom: 2px; padding-bottom: 2px; }
+        #tfidf-panel.dense-keywords .card-title + div { margin-top: 4px !important; }
+        #tfidf-panel.dense-keywords #tfidf-chart { margin-top: 6px !important; }
         #topic-barchart { flex: 0 1 auto !important; min-height: 0 !important; overflow: hidden; align-items: stretch !important; justify-content: flex-start !important; }
         #tfidf-chart svg,
         #topic-barchart svg { display: block; width: 100%; }
@@ -132,7 +136,7 @@
         #results-area { flex: 0.6; background: #e2e8f0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.96rem; }
         .perturbation-output { margin-top: 6px; min-height: 72px; }
         .perturbation-meta { margin-top: 10px; font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
-        .perturbation-carousel { display: flex; gap: 8px; overflow-x: auto; overflow-y: hidden; max-width: 100%; min-width: 0; padding: 8px 0 4px; margin-top: 6px; scrollbar-width: thin; overscroll-behavior-x: contain; }
+        .perturbation-carousel { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px; overflow: visible; max-width: 100%; min-width: 0; padding: 8px 0 4px; margin-top: 6px; }
         .perturbation-chip { flex: 0 0 auto; border: 1px solid #cbd5e1; background: #ffffff; color: #334155; border-radius: 999px; padding: 6px 10px; font-size: 0.8rem; white-space: nowrap; cursor: pointer; transition: all 0.2s; }
         .perturbation-chip.active { border-width: 2px; }
         .perturbation-empty { margin-top: 10px; font-size: 0.86rem; color: #64748b; }

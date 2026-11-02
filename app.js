@@ -1,6 +1,6 @@
 // Set up connection to Kaggle/Ngrok backend
 // IMPORTANT: Update the fallback URL when Kaggle/ngrok gives you a new public endpoint.
-const DEFAULT_API_BASE_URL = "https://941f-35-198-202-67.ngrok-free.app";
+const DEFAULT_API_BASE_URL = "https://aba2-136-111-170-216.ngrok-free.app"
 const API_BASE_URL = (() => {
     const params = new URLSearchParams(window.location.search);
     const queryUrl = params.get("apiBaseUrl");
@@ -401,13 +401,25 @@ function reapplySelectionMode() {
 }
 
 function setClusterEncoding(encoding, options = {}) {
-    const { clearSelectionOnChange = false } = options;
+    const {
+        clearSelectionOnChange = false,
+        preserveBrushClusterOnChange = true,
+        preservePerturbationsOnChange = true
+    } = options;
+    const preserveBrushClusterSelection = preserveBrushClusterOnChange
+        && interactionMode === "brush"
+        && selectionMode === "cluster"
+        && selectedNodesData.length > 0;
     const encodingChanged = currentColorEncoding !== encoding;
     currentColorEncoding = encoding;
     updateOutlierToggleVisibility();
     if (encodingChanged) {
-        clearPerturbationState();
-        if (clearSelectionOnChange && selectedNodesData.length) {
+        if (!preservePerturbationsOnChange) {
+            clearPerturbationState();
+        } else {
+            refreshPerturbationColorEncoding();
+        }
+        if (clearSelectionOnChange && selectedNodesData.length && !preserveBrushClusterSelection) {
             clearSelection({ resetPerturbations: true });
         }
     }
@@ -442,11 +454,14 @@ function setClusterEncoding(encoding, options = {}) {
         applySelectionVisualState();
     }
     updateNodeColors();
+    keepAxesVisible(d3.zoomTransform(svg.node()));
     renderMapLegends(selectedNodesData);
 
     if (selectionMode === "cluster" && selectedNodesData.length) {
-        reapplySelectionMode();
-        return;
+        if (!preserveBrushClusterSelection) {
+            reapplySelectionMode();
+            return;
+        }
     }
 
     renderSelectionDistributionChart(selectedNodesData);
@@ -517,7 +532,7 @@ function keepAxesVisible(transform = d3.zoomTransform(svg.node())) {
 
     svg.select("#umap-x-label")
         .attr("x", width / 2)
-        .attr("y", height - mapMargin.bottom + 60);
+        .attr("y", height - mapMargin.bottom + (currentColorEncoding === "topic" ? 48 : 60));
 
     svg.select("#umap-y-label")
         .attr("x", -height / 2)
@@ -1424,7 +1439,13 @@ function renderSelectionDistributionChart(nodes) {
 
     container.attr("class", "");
 
-    // CLUSTER BASED
+    // BRUSH + CLUSTER BASED: stessa distribuzione della selezione Brush + Point.
+    if (interactionMode === "brush" && selectionMode === "cluster") {
+        renderSelectionVerticalBarChart(container, nodes);
+        return;
+    }
+
+    // CLICK + CLUSTER BASED
     if (selectionMode === "cluster") {
         renderBrushClusterSummary(container, nodes);
         return;
@@ -1654,6 +1675,22 @@ function clearPerturbationState() {
         node._lastPerturbationResult = null;
     });
     resetPerturbationResults();
+}
+
+function refreshPerturbationColorEncoding() {
+    perturbationVisualNodes.forEach(node => {
+        // Il colore viene ricalcolato da getNodeFillColor usando la view corrente.
+        node._fillOverride = null;
+    });
+
+    perturbationTrajectories.forEach(trajectory => {
+        const sourceNode = allNodesData.find(node => node.id === trajectory.sourceNodeId);
+        if (sourceNode) {
+            trajectory.ghost.attr("fill", getNodeFillColor(sourceNode));
+        }
+    });
+
+    updatePerturbationTrajectories();
 }
 
 function clearSelection(options = {}) {
@@ -2013,7 +2050,11 @@ d3.csv("base_map.csv", function (d) {
 
     colorEncodingSelect.addEventListener("change", event => {
         const shouldResetView = interactionMode === "brush" && selectionMode === "point";
-        setClusterEncoding(event.target.value, { clearSelectionOnChange: true });
+        setClusterEncoding(event.target.value, {
+            clearSelectionOnChange: true,
+            preserveBrushClusterOnChange: false,
+            preservePerturbationsOnChange: false
+        });
         if (shouldResetView) {
             applyZoomTransform(d3.zoomIdentity, 320);
         }
@@ -2110,7 +2151,7 @@ function renderTokenAnalysis(text) {
 
                 container.append("span")
                     .attr("class", "token")
-                    .attr("title", `Impact Score: ${item.weight.toFixed(3)}`)
+                    .attr("title", `Word weight: ${item.weight.toFixed(3)}`)
                     .style("background-color", bg)
                     .style("color", fg)
                     .style("padding", "0 6px")
@@ -2403,7 +2444,6 @@ if (btnMapNavigation) {
 if (btnPanSelection) {
     btnPanSelection.addEventListener("click", () => {
         centerSelectionInView(selectedNodesData);
-        setCenterButtonEnabled(false);
     });
 }
 
@@ -2498,6 +2538,8 @@ function updateTFIDFChart(data) {
     } else if (data && Array.isArray(data) && Array.isArray(data[0])) {
         data = data.map(d => ({ word: d[0], score: d[1] }));
     }
+
+    tfContainer.classList.toggle("dense-keywords", Array.isArray(data) && data.length >= 25);
 
 
     if (!data || data.length === 0) {
@@ -3092,7 +3134,11 @@ const inspectorResizeObserver = new ResizeObserver(() => {
     });
 });
 
-[document.getElementById("tfidf-chart"), document.getElementById("topic-barchart")]
+[
+    document.getElementById("selection-inspector-card"),
+    document.getElementById("tfidf-chart"),
+    document.getElementById("topic-barchart")
+]
     .filter(Boolean)
     .forEach(element => inspectorResizeObserver.observe(element));
 
